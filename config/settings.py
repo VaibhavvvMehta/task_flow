@@ -47,7 +47,6 @@ INSTALLED_APPS = [
     'accounts',
     'tasks',
     'notifications',
-    'core',
     'reports',
 
 ]
