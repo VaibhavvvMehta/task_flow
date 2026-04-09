@@ -220,3 +220,34 @@ class DashboardView(View):
         if not request.COOKIES.get('access_token'):
             return redirect('/')
         return render(request, 'dashboard.html')
+    
+class EmployeeListView(APIView):
+    """GET /api/v1/users/employees/ — employees in manager's department"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in ['manager', 'admin']:
+            return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
+
+        employees = User.objects.filter(
+            role='employee',
+            is_active=True,
+            department=request.user.department,
+        ).order_by('first_name')
+
+        data = [{
+            'id':         emp.id,
+            'full_name':  f'{emp.first_name} {emp.last_name}'.strip(),
+            'email':      emp.email,
+            'department': emp.department,
+        } for emp in employees]
+
+        return Response(data)
+
+
+class AssignTaskPageView(View):
+    """Renders the assign task page — manager only"""
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'assign_task.html')

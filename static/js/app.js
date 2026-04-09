@@ -135,11 +135,29 @@ function logout() {
 }
 
 // Load user on page load
-loadUser();  
-function enforceRoleRoute(role) {
-  const path = window.location.pathname;
-  // if employee somehow visits /manager/ or /admin/ — redirect
-  if (role === 'employee' && (path.startsWith('/manager') || path.startsWith('/admin'))) {
-    window.location.href = '/dashboard/';
+async function loadUser() {
+  try {
+    const res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+    if (!res.ok) { 
+      window.location.href = '/'; 
+      return; 
+    }
+    const user = await res.json();
+
+    const parts    = user.full_name.trim().split(' ');
+    const initials = parts.map(p => p[0]).join('').slice(0, 2).toUpperCase();
+
+    document.getElementById('topbar-avatar').textContent = initials;
+    document.getElementById('topbar-name').textContent   = user.first_name || user.full_name;
+    document.getElementById('user-avatar').textContent   = initials;
+    document.getElementById('sidebar-name').textContent  = user.full_name;
+    document.getElementById('sidebar-role').textContent  = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+
+    buildNav(user.role);
+    enforceRoleRoute(user.role);
+
+  } catch(e) { 
+    // Log the error but don't redirect — could be a non-auth JS error
+    console.error('User load error:', e);
   }
 }
