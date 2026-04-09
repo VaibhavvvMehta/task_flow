@@ -1,0 +1,164 @@
+{% extends 'layouts/app.html' %}
+{% load static %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Welcome back{% endblock %}
+
+{% block app_content %}
+
+<!-- Metric cards -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px;">
+  <div class="card" style="border-radius:12px;padding:18px 20px;">
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Total Tasks</div>
+    <div style="font-size:28px;font-weight:700;color:var(--text);letter-spacing:-0.5px;" id="stat-total">—</div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:4px;">assigned to you</div>
+  </div>
+  <div class="card" style="border-radius:12px;padding:18px 20px;">
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Active</div>
+    <div style="font-size:28px;font-weight:700;color:#2563eb;letter-spacing:-0.5px;" id="stat-active">—</div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:4px;">in progress</div>
+  </div>
+  <div class="card" style="border-radius:12px;padding:18px 20px;">
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Overdue</div>
+    <div style="font-size:28px;font-weight:700;color:#ef4444;letter-spacing:-0.5px;" id="stat-overdue">—</div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:4px;">past due date</div>
+  </div>
+  <div class="card" style="border-radius:12px;padding:18px 20px;">
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Completed</div>
+    <div style="font-size:28px;font-weight:700;color:#16a34a;letter-spacing:-0.5px;" id="stat-done">—</div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:4px;">all time</div>
+  </div>
+</div>
+
+<!-- Bottom grid -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+  <div class="card" style="border-radius:12px;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="font-size:13px;font-weight:600;color:var(--text);">Recent Tasks</h3>
+      <a href="/tasks/" style="font-size:12px;color:var(--blue);text-decoration:none;">View all →</a>
+    </div>
+    <div id="recent-tasks">
+      <div style="font-size:13px;color:var(--text-3);text-align:center;padding:24px 0;">Loading...</div>
+    </div>
+  </div>
+  <div class="card" style="border-radius:12px;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="font-size:13px;font-weight:600;color:var(--text);">Overdue Tasks</h3>
+      <span style="font-size:11px;padding:2px 8px;background:#fef2f2;color:#ef4444;border-radius:20px;font-weight:600;" id="overdue-badge">0</span>
+    </div>
+    <div id="overdue-tasks">
+      <div style="font-size:13px;color:var(--text-3);text-align:center;padding:24px 0;">Loading...</div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block page_js %}
+<script>
+async function loadDashboard() {
+
+  try {
+    const res   = await fetch('/api/v1/tasks/', { credentials: 'include' });
+    if (res.status === 401) { window.location.href = '/'; return; }
+    if (!res.ok) {
+      if (res.status === 404) {
+    const errorMsg = `<div style="text-align:center;padding:24px;">
+      <div style="font-size:13px;color:#ef4444;margin-bottom:8px;font-weight:600;">⚠️ API Not Configured</div>
+      <p style="font-size:12px;color:var(--text-2);margin-bottom:12px;">The backend API endpoints are not properly set up. Contact your system administrator.</p>
+      <p style="font-size:11px;color:var(--text-3);">Endpoint: /api/v1/tasks/ [404]</p>
+    </div>`;
+    document.getElementById('stat-total').textContent = 'N/A';
+    document.getElementById('stat-active').textContent = 'N/A';
+    document.getElementById('stat-done').textContent = 'N/A';
+    document.getElementById('stat-overdue').textContent = 'N/A';
+    document.getElementById('recent-tasks').innerHTML = errorMsg;
+    document.getElementById('overdue-tasks').innerHTML = errorMsg;
+  } else {
+    const errorMsg = `<div style="text-align:center;padding:24px;">
+      <div style="font-size:13px;color:var(--text);margin-bottom:8px;font-weight:500;">Unable to load tasks</div>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px;">Server is initializing...</p>
+      <button onclick="location.reload()" style="font-size:12px;padding:6px 12px;background:var(--blue);color:white;border:none;border-radius:6px;cursor:pointer;">Refresh</button>
+    </div>`;
+    document.getElementById('stat-total').textContent = '—';
+    document.getElementById('stat-active').textContent = '—';
+    document.getElementById('stat-done').textContent = '—';
+    document.getElementById('stat-overdue').textContent = '—';
+    document.getElementById('recent-tasks').innerHTML = errorMsg;
+    document.getElementById('overdue-tasks').innerHTML = errorMsg;
+  }
+  return;
+}
+    const tasks = await res.json();
+    const list  = tasks.results || tasks;
+
+    const today   = new Date().toISOString().split('T')[0];
+    const active  = list.filter(t => t.status === 'in_progress').length;
+    const done    = list.filter(t => t.status === 'done').length;
+    const overdue = list.filter(t => t.due_date && t.due_date < today && t.status !== 'done');
+
+    document.getElementById('stat-total').textContent   = list.length;
+    document.getElementById('stat-active').textContent  = active;
+    document.getElementById('stat-done').textContent    = done;
+    document.getElementById('stat-overdue').textContent = overdue.length;
+    document.getElementById('overdue-badge').textContent = overdue.length;
+
+    renderTasks('recent-tasks',  list.slice(0, 5));
+    renderOverdue('overdue-tasks', overdue);
+
+  } catch(e) { 
+    console.error('Dashboard load error:', e);
+    const errorMsg = `<div style="text-align:center;padding:24px;">
+      <div style="font-size:13px;color:var(--text);margin-bottom:8px;font-weight:500;">Unable to reach server</div>
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:12px;">Connection lost. Please check your internet or refresh the page.</p>
+      <button onclick="location.reload()" style="font-size:12px;padding:6px 12px;background:var(--blue);color:white;border:none;border-radius:6px;cursor:pointer;">Refresh</button>
+    </div>`;
+    document.getElementById('recent-tasks').innerHTML = errorMsg;
+    document.getElementById('overdue-tasks').innerHTML = errorMsg;
+  }
+}
+
+function renderTasks(elId, tasks) {
+  const el = document.getElementById(elId);
+  if (!tasks.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--text-3);text-align:center;padding:24px 0;">No tasks yet</div>';
+    return;
+  }
+  el.innerHTML = tasks.map(t => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;overflow:hidden;">
+        <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.title}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${t.due_date ? 'Due ' + t.due_date : 'No due date'}</div>
+      </div>
+      <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:10px;flex-shrink:0;
+        background:${t.status==='done'?'#f0fdf4':t.status==='in_progress'?'#eff6ff':'var(--bg)'};
+        color:${t.status==='done'?'#16a34a':t.status==='in_progress'?'#2563eb':'var(--text-2)'};">
+        ${t.status==='done'?'Done':t.status==='in_progress'?'In Progress':'To Do'}
+      </span>
+    </div>
+  `).join('');
+}
+
+function renderOverdue(elId, tasks) {
+  const el = document.getElementById(elId);
+  if (!tasks.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--text-3);text-align:center;padding:24px 0;">You\'re all caught up 🎉</div>';
+    return;
+  }
+  el.innerHTML = tasks.map(t => {
+    const days = Math.floor((new Date() - new Date(t.due_date)) / 86400000);
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="flex:1;overflow:hidden;">
+          <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.title}</div>
+          <div style="font-size:11px;color:#ef4444;margin-top:2px;">${days} day${days!==1?'s':''} overdue</div>
+        </div>
+        <a href="/tasks/" style="font-size:11px;color:var(--blue);text-decoration:none;flex-shrink:0;margin-left:10px;">Update →</a>
+      </div>
+    `;
+  }).join('');
+}
+
+loadDashboard();
+</script>
+{% endblock %}
