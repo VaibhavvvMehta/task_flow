@@ -11,5 +11,4 @@ urlpatterns = [
     path('',views.LoginPageView.as_view(),name='login'),
     path('dashboard/', views.DashboardView.as_view(),name='dashboard'),
     path('employees/', views.EmployeeListView.as_view(), name='employee-list'),
-    path('manager/assign/', views.AssignTaskPageView.as_view(), name='assign-task'),
 ]

@@ -10,6 +10,6 @@ urlpatterns = [
     path('<int:task_id>/assign/', views.TaskReassignView.as_view(),name='task-reassign'), 
 
     #Manger urls
-    path('manager/my-tasks/',views.ManagerOwnTasksView.as_view(), name='manager-own-tasks'),
-    path('manager/team/',views.ManagerTeamView.as_view(),name='manager-team'),
+   path('manager/tasks/', views.ManagerOwnTasksView.as_view(), name='manager-own-tasks'),
+    path('manager/team/tasks/', views.ManagerTeamView.as_view(), name='manager-team'),
 ]

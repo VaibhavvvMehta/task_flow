@@ -250,4 +250,16 @@ class AssignTaskPageView(View):
     def get(self, request):
         if not request.COOKIES.get('access_token'):
             return redirect('/')
-        return render(request, 'assign_task.html')
+        return render(request, 'assign_task.html') 
+
+class MyTasksPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'my_tasks.html') 
+    
+class TeamViewPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'team_view.html')

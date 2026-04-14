@@ -1,54 +1,16 @@
-async function loadUser() {
-  try {
-    const res  = await fetch('/api/v1/auth/me/', { credentials: 'include' });
-    if (!res.ok) { window.location.href = '/'; return; }
-    const user = await res.json();
-
-    const parts    = user.full_name.trim().split(' ');
-    const initials = parts.map(p => p[0]).join('').slice(0, 2).toUpperCase();
-
-    // Topbar
-    document.getElementById('topbar-avatar').textContent = initials;
-    document.getElementById('topbar-name').textContent   = user.first_name || user.full_name;
-
-    // Sidebar footer
-    document.getElementById('user-avatar').textContent  = initials;
-    document.getElementById('sidebar-name').textContent = user.full_name;
-    document.getElementById('sidebar-role').textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
-
-    // Build nav based on role
-    buildNav(user.role);
-    enforceRoleRoute(user.role); //route if somehow landed on disallowed page
-
-  } catch(e) { 
-    console.error('User load error:', e);
-    // Show error message first, then redirect after 2 seconds
-    const sidebar = document.getElementById('sidebar-name');
-    if (sidebar) {
-      sidebar.textContent = 'Connection Error';
-      sidebar.style.color = '#ef4444';
-    }
-    setTimeout(() => {
-      window.location.href = '/';
-    }, 2000);
-  }
-}
-
 function buildNav(role) {
   const nav = document.getElementById('sidebar-nav');
   const currentPath = window.location.pathname;
 
   const navItems = {
     employee: [
-      { href: '/dashboard/',    icon: 'grid',    label: 'Dashboard' },
-      { href: '/tasks/',        icon: 'check',   label: 'My Tasks' },
-      { href: '/history/',      icon: 'clock',   label: 'Task History' },
-      { href: '/performance/',  icon: 'chart',   label: 'Performance' },
-      { href: '/notifications/',icon: 'bell',    label: 'Notifications' },
+      { href: '/dashboard/',     icon: 'grid',  label: 'Dashboard' },
+      { href: '/tasks/',         icon: 'check', label: 'My Tasks' },
+      { href: '/notifications/', icon: 'bell',  label: 'Notifications' },
     ],
     manager: [
       { href: '/dashboard/',      icon: 'grid',  label: 'Dashboard' },
-      { href: '/manager/tasks/',  icon: 'check', label: 'All Tasks' },
+      { href: '/manager/tasks/',  icon: 'check', label: 'My Tasks' },
       { href: '/manager/assign/', icon: 'plus',  label: 'Assign Task' },
       { href: '/manager/team/',   icon: 'users', label: 'Team' },
       { href: '/notifications/',  icon: 'bell',  label: 'Notifications' },
@@ -85,12 +47,25 @@ function buildNav(role) {
   }).join('');
 }
 
+function enforceRoleRoute(role) {
+  const path = window.location.pathname;
+
+  const managerOnly = ['/manager/tasks/', '/manager/assign/', '/manager/team/'];
+  const employeeOnly = ['/tasks/'];
+
+  if (role === 'employee' && managerOnly.some(p => path.startsWith(p))) {
+    window.location.href = '/dashboard/';
+  }
+  if (role === 'manager' && employeeOnly.includes(path)) {
+    window.location.href = '/dashboard/';
+  }
+}
+
 function toggleSidebar() {
-  const sidebar = document.getElementById('sidebar');
+  const sidebar  = document.getElementById('sidebar');
   const mainArea = document.getElementById('main-area');
-  const root = document.documentElement;
   const isCollapsed = sidebar.style.width === 'var(--sidebar-collapsed-w)';
-  
+
   if (isCollapsed) {
     sidebar.style.width = 'var(--sidebar-w)';
     mainArea.style.marginLeft = 'var(--sidebar-w)';
@@ -113,8 +88,7 @@ function toggleUserMenu() {
 
 function clearStoredAuthArtifacts() {
   const keys = ['access_token', 'refresh_token', 'token', 'auth_token', 'authToken', 'jwt', 'jwt_access', 'jwt_refresh'];
-
-  keys.forEach((key) => {
+  keys.forEach(key => {
     localStorage.removeItem(key);
     sessionStorage.removeItem(key);
   });
@@ -122,26 +96,20 @@ function clearStoredAuthArtifacts() {
 
 function logout() {
   clearStoredAuthArtifacts();
-
   fetch('/api/v1/auth/logout/', {
     method: 'POST',
     credentials: 'include',
     headers: { 'X-Requested-With': 'XMLHttpRequest' },
     cache: 'no-store',
-  })
-    .finally(() => {
-      window.location.href = '/';
-    });
+  }).finally(() => {
+    window.location.href = '/';
+  });
 }
 
-// Load user on page load
 async function loadUser() {
   try {
     const res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
-    if (!res.ok) { 
-      window.location.href = '/'; 
-      return; 
-    }
+    if (!res.ok) { window.location.href = '/'; return; }
     const user = await res.json();
 
     const parts    = user.full_name.trim().split(' ');
@@ -156,8 +124,16 @@ async function loadUser() {
     buildNav(user.role);
     enforceRoleRoute(user.role);
 
-  } catch(e) { 
-    // Log the error but don't redirect — could be a non-auth JS error
+  } catch(e) {
     console.error('User load error:', e);
+    const sidebar = document.getElementById('sidebar-name');
+    if (sidebar) {
+      sidebar.textContent = 'Connection Error';
+      sidebar.style.color = '#ef4444';
+    }
+    setTimeout(() => { window.location.href = '/'; }, 2000);
   }
 }
+
+// Init
+loadUser();
