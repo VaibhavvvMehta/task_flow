@@ -6,6 +6,25 @@
 
 {% block app_content %}
 
+<!-- Tab switcher -->
+<div style="display:flex;gap:4px;margin-bottom:24px;border-bottom:2px solid var(--border);padding-bottom:0;">
+  <button id="tab-tasks" onclick="switchTab('tasks')" style="
+    padding:9px 18px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;
+    border:none;background:none;cursor:pointer;color:var(--blue);
+    border-bottom:2px solid var(--blue);margin-bottom:-2px;transition:all 0.15s;">
+    Tasks
+  </button>
+  <button id="tab-performance" onclick="switchTab('performance')" style="
+    padding:9px 18px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;
+    border:none;background:none;cursor:pointer;color:var(--text-3);
+    border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">
+    Performance
+  </button>
+</div>
+
+<!-- ── Tasks Panel ─────────────────────────────────────────────────────────── -->
+<div id="panel-tasks">
+
 <!-- Filter bar -->
 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
 
@@ -60,6 +79,82 @@
     <div style="font-size:13px;color:var(--text-3);">Loading tasks...</div>
   </div>
 </div>
+
+</div><!-- /panel-tasks -->
+
+<!-- ── Performance Panel ──────────────────────────────────────────────────── -->
+<div id="panel-performance" style="display:none;">
+
+  <!-- Subject selector: own stats vs a team member -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <label style="font-size:13px;font-weight:600;color:var(--text-2);">Viewing performance for:</label>
+    <select id="perf-user-select" onchange="onPerfUserChange()"
+      style="padding:7px 12px;font-size:13px;font-family:'Inter',sans-serif;
+             border:1px solid var(--border);border-radius:8px;background:var(--surface);
+             color:var(--text);outline:none;cursor:pointer;">
+      <option value="">Me</option>
+    </select>
+  </div>
+
+  <div id="perf-loading" style="padding:40px;text-align:center;font-size:13px;color:var(--text-3);">
+    Loading performance data…
+  </div>
+
+  <div id="perf-content" style="display:none;">
+
+    <div id="perf-subject-name" style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:16px;"></div>
+
+    <!-- Stat cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:28px;">
+      <div class="card perf-card">
+        <div class="perf-card-label">Total Tasks</div>
+        <div class="perf-card-value" id="pc-total">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Completed</div>
+        <div class="perf-card-value" id="pc-done" style="color:#16a34a;">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Completion Rate</div>
+        <div class="perf-card-value" id="pc-rate" style="color:#2563eb;">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">On Time</div>
+        <div class="perf-card-value" id="pc-ontime" style="color:#16a34a;">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Late</div>
+        <div class="perf-card-value" id="pc-late" style="color:#ef4444;">—</div>
+      </div>
+    </div>
+
+    <!-- Chart + legend -->
+    <div class="card" style="border-radius:12px;padding:24px;">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:20px;">Task Breakdown</div>
+      <div style="display:flex;align-items:center;gap:32px;flex-wrap:wrap;">
+        <div style="position:relative;width:180px;height:180px;flex-shrink:0;">
+          <canvas id="perf-chart" width="180" height="180"></canvas>
+        </div>
+        <div id="perf-legend" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+    </div>
+
+    <!-- How numbers are calculated -->
+    <div class="card" style="border-radius:12px;padding:20px;margin-top:14px;">
+      <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em;">How these numbers are calculated</div>
+      <div style="font-size:12px;color:var(--text-3);line-height:1.7;">
+        <b style="color:var(--text-2);">Total Tasks</b> — all active tasks assigned to the selected person (soft-deleted tasks excluded).<br>
+        <b style="color:var(--text-2);">Completed</b> — tasks with status <em>Done</em>.<br>
+        <b style="color:var(--text-2);">Completion Rate</b> — Completed ÷ Total × 100.<br>
+        <b style="color:var(--text-2);">On Time</b> — Done tasks that have a due date, where the completion timestamp's date ≤ due date.<br>
+        <b style="color:var(--text-2);">Late</b> — Done tasks that have a due date, where the completion timestamp's date &gt; due date.<br>
+        <em>Done tasks without a due date are counted in Completed but not in On Time or Late.</em>
+      </div>
+    </div>
+
+  </div><!-- /perf-content -->
+
+</div><!-- /panel-performance -->
 
 <!-- Status modal -->
 <div id="status-modal" style="
@@ -141,12 +236,163 @@
   }
   .modal-status-option:hover { border-color: var(--blue); background: var(--blue-light); color: var(--blue); }
   .modal-status-option.current { border-color: var(--blue); background: var(--blue-light); color: var(--blue); cursor: default; }
+
+  .perf-card {
+    border-radius: 10px;
+    padding: 16px 18px;
+    text-align: center;
+  }
+  .perf-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .perf-card-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
 </style>
 
 {% endblock %}
 
 {% block page_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script>
+// ── Tab switching ──────────────────────────────────────────────────────────
+let perfLoaded     = false;
+let perfChart      = null;
+let allEmployees   = [];
+
+function switchTab(tab) {
+  const isPerf = tab === 'performance';
+  document.getElementById('panel-tasks').style.display       = isPerf ? 'none' : 'block';
+  document.getElementById('panel-performance').style.display = isPerf ? 'block' : 'none';
+
+  document.getElementById('tab-tasks').style.color               = isPerf ? 'var(--text-3)' : 'var(--blue)';
+  document.getElementById('tab-tasks').style.borderBottomColor   = isPerf ? 'transparent' : 'var(--blue)';
+  document.getElementById('tab-performance').style.color             = isPerf ? 'var(--blue)' : 'var(--text-3)';
+  document.getElementById('tab-performance').style.borderBottomColor = isPerf ? 'var(--blue)' : 'transparent';
+
+  if (isPerf && !perfLoaded) {
+    loadTeamMembers();   // populate dropdown first, then load own stats
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.location.hash === '#performance') switchTab('performance');
+});
+
+// ── Load team members for dropdown ────────────────────────────────────────
+async function loadTeamMembers() {
+  try {
+    const res = await fetch('/api/v1/users/employees/', { credentials: 'include' });
+    if (!res.ok) throw new Error();
+    allEmployees = await res.json();
+
+    const sel = document.getElementById('perf-user-select');
+    allEmployees.forEach(emp => {
+      const opt = document.createElement('option');
+      opt.value       = emp.id;
+      opt.textContent = emp.full_name || emp.email;
+      sel.appendChild(opt);
+    });
+  } catch(e) { /* dropdown stays with just "Me" */ }
+
+  loadPerformance();   // load own stats on first open
+}
+
+function onPerfUserChange() {
+  perfLoaded = false;
+  document.getElementById('perf-loading').style.display = 'block';
+  document.getElementById('perf-content').style.display = 'none';
+  loadPerformance();
+}
+
+// ── Load performance data ──────────────────────────────────────────────────
+async function loadPerformance() {
+  const userId = document.getElementById('perf-user-select').value;
+  const url    = '/api/v1/reports/my-performance/' + (userId ? `?user_id=${userId}` : '');
+
+  try {
+    const res = await fetch(url, { credentials: 'include' });
+    if (res.status === 401) { window.location.href = '/'; return; }
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    renderPerformance(data);
+    perfLoaded = true;
+  } catch(e) {
+    document.getElementById('perf-loading').innerHTML =
+      '<span style="color:#ef4444;">Failed to load performance data. Please try again.</span>';
+  }
+}
+
+function renderPerformance(d) {
+  document.getElementById('perf-loading').style.display = 'none';
+  document.getElementById('perf-content').style.display = 'block';
+
+  document.getElementById('perf-subject-name').textContent =
+    d.user.full_name + ' (' + d.user.role.charAt(0).toUpperCase() + d.user.role.slice(1) + ')';
+
+  document.getElementById('pc-total').textContent  = d.total_tasks;
+  document.getElementById('pc-done').textContent   = d.done_tasks;
+  document.getElementById('pc-rate').textContent   = d.completion_rate + '%';
+  document.getElementById('pc-ontime').textContent = d.on_time_count;
+  document.getElementById('pc-late').textContent   = d.late_count;
+
+  const doneNoDue = d.done_tasks - d.on_time_count - d.late_count;
+  const notDone   = d.total_tasks - d.done_tasks;
+
+  const segments = [
+    { label: 'On Time',            value: d.on_time_count, color: '#16a34a' },
+    { label: 'Late',               value: d.late_count,    color: '#ef4444' },
+    { label: 'Done (no due date)', value: doneNoDue,       color: '#2563eb' },
+    { label: 'Not Done',           value: notDone,         color: '#cbd5e1' },
+  ].filter(s => s.value > 0);
+
+  if (perfChart) perfChart.destroy();
+
+  if (segments.length === 0 || d.total_tasks === 0) {
+    document.querySelector('#perf-chart').style.display = 'none';
+    document.getElementById('perf-legend').innerHTML =
+      '<span style="font-size:12px;color:var(--text-3);">No tasks yet.</span>';
+    return;
+  }
+
+  document.querySelector('#perf-chart').style.display = '';
+  perfChart = new Chart(document.getElementById('perf-chart'), {
+    type: 'doughnut',
+    data: {
+      labels:   segments.map(s => s.label),
+      datasets: [{
+        data:            segments.map(s => s.value),
+        backgroundColor: segments.map(s => s.color),
+        borderWidth:     2,
+        borderColor:     'var(--surface)',
+        hoverOffset:     6,
+      }],
+    },
+    options: {
+      cutout: '68%',
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` },
+      }},
+    },
+  });
+
+  document.getElementById('perf-legend').innerHTML = segments.map(s => `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="width:10px;height:10px;border-radius:50%;background:${s.color};flex-shrink:0;display:inline-block;"></span>
+      <span style="font-size:12px;color:var(--text-2);">${s.label}</span>
+      <span style="font-size:12px;font-weight:700;color:var(--text);margin-left:auto;padding-left:16px;">${s.value}</span>
+    </div>
+  `).join('');
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 let allTasks     = [];
 let activeFilter = 'all';

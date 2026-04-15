@@ -230,9 +230,9 @@ class EmployeeListView(APIView):
             return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
 
         employees = User.objects.filter(
+            manager=request.user,
             role='employee',
             is_active=True,
-            department=request.user.department,
         ).order_by('first_name')
 
         data = [{
@@ -250,16 +250,105 @@ class AssignTaskPageView(View):
     def get(self, request):
         if not request.COOKIES.get('access_token'):
             return redirect('/')
-        return render(request, 'assign_task.html') 
+        return render(request, 'assign_task.html')
 
 class MyTasksPageView(View):
     def get(self, request):
         if not request.COOKIES.get('access_token'):
             return redirect('/')
-        return render(request, 'my_tasks.html') 
-    
+        return render(request, 'my_tasks.html')
+
 class TeamViewPageView(View):
     def get(self, request):
         if not request.COOKIES.get('access_token'):
             return redirect('/')
         return render(request, 'team_view.html')
+
+
+class NotificationsPageView(View):
+    """Renders the notifications page — all roles."""
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'notifications.html')
+
+
+class HierarchyPageView(View):
+    """Renders the hierarchy / org-chart page — all roles."""
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'hierarchy.html')
+
+
+class HierarchyView(APIView):
+    """
+    GET /api/v1/users/hierarchy/
+    Returns department-based org chart data.
+    ?scope=team   (default) — current user's department only
+    ?scope=company          — all departments (admin always gets company)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        scope = request.query_params.get('scope', 'team')
+
+        # Admins always see the full company
+        if request.user.role == 'admin':
+            scope = 'company'
+
+        result = []
+
+        if scope == 'company':
+            # One block per manager, each showing their own direct reports
+            managers = (
+                User.objects.filter(role='manager', is_active=True)
+                .order_by('department', 'first_name', 'last_name')
+            )
+            for mgr in managers:
+                employees = (
+                    User.objects.filter(manager=mgr, role='employee', is_active=True)
+                    .order_by('first_name', 'last_name')
+                )
+                result.append({
+                    'department': mgr.department or '',
+                    'manager': {
+                        'id':        mgr.id,
+                        'full_name': f'{mgr.first_name} {mgr.last_name}'.strip(),
+                        'email':     mgr.email,
+                    },
+                    'employees': [{
+                        'id':        emp.id,
+                        'full_name': f'{emp.first_name} {emp.last_name}'.strip(),
+                        'email':     emp.email,
+                    } for emp in employees],
+                })
+
+        else:
+            # Team scope — show the manager the requesting user reports to
+            if request.user.role == 'manager':
+                mgr = request.user
+            else:
+                # Employee sees the hierarchy of their own assigned manager
+                mgr = request.user.manager
+
+            if mgr:
+                employees = (
+                    User.objects.filter(manager=mgr, role='employee', is_active=True)
+                    .order_by('first_name', 'last_name')
+                )
+                result.append({
+                    'department': mgr.department or '',
+                    'manager': {
+                        'id':        mgr.id,
+                        'full_name': f'{mgr.first_name} {mgr.last_name}'.strip(),
+                        'email':     mgr.email,
+                    },
+                    'employees': [{
+                        'id':        emp.id,
+                        'full_name': f'{emp.first_name} {emp.last_name}'.strip(),
+                        'email':     emp.email,
+                    } for emp in employees],
+                })
+
+        return Response(result)
