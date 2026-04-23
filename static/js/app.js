@@ -15,7 +15,6 @@ function buildNav(role) {
       { href: '/manager/tasks/',                 icon: 'check',   label: 'My Tasks' },
       { href: '/manager/tasks/#performance',     icon: 'chart',   label: 'Performance' },
       { href: '/manager/assign/',                icon: 'plus',    label: 'Assign Task' },
-      { href: '/manager/team/',                  icon: 'users',   label: 'Team' },
       { href: '/hierarchy/',                     icon: 'sitemap', label: 'Hierarchy' },
       { href: '/notifications/',                 icon: 'bell',    label: 'Notifications' },
     ],
@@ -58,7 +57,7 @@ function buildNav(role) {
 function enforceRoleRoute(role) {
   const path = window.location.pathname;
 
-  const managerOnly = ['/manager/tasks/', '/manager/assign/', '/manager/team/'];
+  const managerOnly = ['/manager/tasks/', '/manager/assign/'];
   const employeeOnly = ['/tasks/'];
 
   if (role === 'employee' && managerOnly.some(p => path.startsWith(p))) {
@@ -159,6 +158,14 @@ async function loadUser() {
     setTimeout(() => { window.location.href = '/'; }, 2000);
   }
 }
+
+// When the Performance sidebar link is clicked while already on the tasks page,
+// the browser only changes the hash (no reload). Listen and trigger switchTab if present.
+window.addEventListener('hashchange', () => {
+  if (typeof switchTab === 'function') {
+    switchTab(window.location.hash === '#performance' ? 'performance' : 'tasks');
+  }
+});
 
 // Init
 loadUser();

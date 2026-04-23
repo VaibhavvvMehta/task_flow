@@ -395,7 +395,7 @@ function renderPerformance(d) {
 
 // ── State ──────────────────────────────────────────────────────────────────
 let allTasks     = [];
-let activeFilter = 'all';
+let activeFilter = 'todo';
 
 const STATUS_CONFIG = {
   todo:        { label: 'To Do',       bg: 'var(--bg)', textColor: 'var(--text-2)', color: '#94a3b8' },
@@ -416,10 +416,20 @@ const ALL_STATUSES = [
 ];
 
 // ── Init ───────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', loadTasks);
+document.addEventListener('DOMContentLoaded', () => {
+  loadTasks();
+  // Start with To Do pill active
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  document.getElementById('pill-todo').classList.add('active');
+});
 
 document.getElementById('status-modal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
+});
+
+// hashchange lets the sidebar Performance link work without a page reload
+window.addEventListener('hashchange', () => {
+  switchTab(window.location.hash === '#performance' ? 'performance' : 'tasks');
 });
 
 // ── Load ───────────────────────────────────────────────────────────────────

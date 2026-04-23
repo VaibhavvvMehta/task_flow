@@ -127,7 +127,7 @@ async function handleLoginSubmit(e) {
     });
 
     if (response.ok) {
-      window.location.href = '/dashboard/';
+      window.location.replace('/dashboard/');
       return;
     }
 
@@ -145,7 +145,7 @@ async function handleLoginSubmit(e) {
     try {
       const meRes = await fetch(getApiUrl('/api/v1/auth/me/'), { credentials: 'include' });
       if (meRes.ok) {
-        window.location.href = '/dashboard/';
+        window.location.replace('/dashboard/');
         return;
       }
     } catch (probeErr) {
@@ -162,38 +162,22 @@ if (loginForm) {
   loginForm.addEventListener('submit', handleLoginSubmit);
 }
 
-// Check server status on page load
-async function checkServerOnLoad() {
+// On page load: if already authenticated, skip the login page entirely.
+// Using replace() so the login page is never added to the browser history —
+// pressing Back from the dashboard won't loop back here.
+async function redirectIfAuthenticated() {
   try {
-    const res = await fetch('/api/v1/health/', { method: 'GET' });
-    updateServerStatus(res.status !== 0);
-  } catch (err) {
-    try {
-      const res2 = await fetch('/');
-      updateServerStatus(res2.ok);
-    } catch (err2) {
-      updateServerStatus(false);
+    const res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+    if (res.ok) {
+      window.location.replace('/dashboard/');
     }
-  }
-}
-
-function updateServerStatus(isOnline) {
-  const dot  = document.getElementById('status-dot');
-  const text = document.getElementById('status-text');
-
-  if (!dot || !text) return;
-
-  if (isOnline) {
-    dot.style.background = '#10b981';
-    text.textContent = 'Server is online';
-  } else {
-    dot.style.background = '#ef4444';
-    text.textContent = 'Server is offline';
+  } catch (_) {
+    // Not logged in or server unreachable — stay on login page
   }
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', checkServerOnLoad);
+  document.addEventListener('DOMContentLoaded', redirectIfAuthenticated);
 } else {
-  checkServerOnLoad();
+  redirectIfAuthenticated();
 }

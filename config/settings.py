@@ -14,6 +14,8 @@ from pathlib import Path
 from decouple import config
 import os
 
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost').split(',')
@@ -198,6 +200,18 @@ INTERNAL_IPS = ['127.0.0.1']
 
 
 
+
+# ── Redis Cache ───────────────────────────────────────────────────────────────
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'KEY_PREFIX': 'taskflow',
+    }
+}
 
 # ── Email — Gmail SMTP ────────────────────────────────────────────────────────
 EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'

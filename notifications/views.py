@@ -12,16 +12,18 @@ from .models import Notification
 
 
 class NotificationListView(APIView):
-    """GET /api/v1/notifications/ — list current user's notifications (newest first, max 50)."""
+    """GET /api/v1/notifications/ — list current user's notifications (newest first, max 50).
+    Optional: ?unread=true  → only unread notifications.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        notifications = (
-            Notification.objects
-            .filter(user=request.user)
-            .select_related('task')
-            .order_by('-created_at')[:50]
-        )
+        qs = Notification.objects.filter(user=request.user).select_related('task').order_by('-created_at')
+
+        if request.query_params.get('unread') == 'true':
+            qs = qs.filter(is_read=False)
+
+        notifications = qs[:50]
 
         data = [{
             'id':         n.id,

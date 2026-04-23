@@ -3,6 +3,9 @@ accounts/views.py
 Handles authentication API endpoints and page rendering.
 """
 
+import time
+
+from django.core.cache import cache
 from django.shortcuts import render, redirect
 from django.views import View
 from django.contrib.auth import get_user_model, authenticate
@@ -10,7 +13,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
 User = get_user_model()
 
@@ -108,16 +111,27 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    """POST /api/v1/auth/logout/ — clears JWT cookies."""
+    """POST /api/v1/auth/logout/ — blacklists JWT tokens then clears cookies."""
 
     permission_classes = [AllowAny]
 
+    def _blacklist_token(self, raw_token, token_class):
+        """Store token JTI in Redis until the token naturally expires."""
+        try:
+            token = token_class(raw_token)
+            jti   = token['jti']
+            ttl   = max(int(token['exp'] - time.time()), 0)
+            if ttl > 0:
+                cache.set(f'blacklist:jti:{jti}', '1', timeout=ttl)
+        except Exception:
+            pass  # invalid/expired token — nothing to blacklist
+
     def post(self, request):
-        response = Response(
-            {'message': 'Logged out successfully'},
-            status=status.HTTP_200_OK
-        )
-        response.delete_cookie('access_token', path='/')
+        self._blacklist_token(request.COOKIES.get('access_token'),  AccessToken)
+        self._blacklist_token(request.COOKIES.get('refresh_token'), RefreshToken)
+
+        response = Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
+        response.delete_cookie('access_token',  path='/')
         response.delete_cookie('refresh_token', path='/')
         return response
 
@@ -212,7 +226,10 @@ class LoginPageView(View):
     def get(self, request):
         if request.COOKIES.get('access_token'):
             return redirect('/dashboard/')
-        return render(request, 'auth/login.html')
+        response = render(request, 'auth/login.html')
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        response['Pragma'] = 'no-cache'
+        return response
 
 
 class DashboardView(View):

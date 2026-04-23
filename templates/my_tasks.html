@@ -379,7 +379,7 @@ function renderPerformance(d) {
 
 // ── State ──────────────────────────────────────────────────────────────────
 let allTasks    = [];
-let activeFilter = 'all';
+let activeFilter = 'todo';
 let updatingId   = null;
 
 // ── Status config ──────────────────────────────────────────────────────────
@@ -402,7 +402,17 @@ const ALL_STATUSES = [
 ];
 
 // ── Init ───────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', loadTasks);
+document.addEventListener('DOMContentLoaded', () => {
+  loadTasks();
+  // Start with To Do pill active
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  document.getElementById('pill-todo').classList.add('active');
+});
+
+// hashchange lets the sidebar Performance link work without a page reload
+window.addEventListener('hashchange', () => {
+  switchTab(window.location.hash === '#performance' ? 'performance' : 'tasks');
+});
 
 // Close modal on backdrop click
 document.getElementById('status-modal').addEventListener('click', function(e) {
