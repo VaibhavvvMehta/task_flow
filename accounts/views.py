@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.exceptions import TokenError
 
 User = get_user_model()
 
@@ -151,7 +152,13 @@ class TokenRefreshView(APIView):
             )
 
         try:
-            refresh  = RefreshToken(refresh_token)
+            refresh = RefreshToken(refresh_token)
+            jti = refresh['jti']
+            if cache.get(f'blacklist:jti:{jti}'):
+                return Response(
+                    {'error': 'Session expired. Please log in again.'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
             response = Response(
                 {'message': 'Token refreshed'},
                 status=status.HTTP_200_OK
@@ -224,8 +231,13 @@ class LoginPageView(View):
     """Renders the login HTML page. Redirects to dashboard if already logged in."""
 
     def get(self, request):
-        if request.COOKIES.get('access_token'):
-            return redirect('/dashboard/')
+        raw_token = request.COOKIES.get('access_token')
+        if raw_token:
+            try:
+                AccessToken(raw_token)  # raises TokenError if expired or invalid
+                return redirect('dashboard')
+            except TokenError:
+                pass  # expired/invalid — fall through to login form
         response = render(request, 'auth/login.html')
         response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
         response['Pragma'] = 'no-cache'
@@ -246,11 +258,14 @@ class EmployeeListView(APIView):
         if request.user.role not in ['manager', 'admin']:
             return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
 
-        employees = User.objects.filter(
-            manager=request.user,
-            role='employee',
-            is_active=True,
-        ).order_by('first_name')
+        if request.user.role == 'admin':
+            employees = User.objects.filter(role='employee', is_active=True).order_by('first_name')
+        else:
+            employees = User.objects.filter(
+                manager=request.user,
+                role='employee',
+                is_active=True,
+            ).order_by('first_name')
 
         data = [{
             'id':         emp.id,
@@ -260,34 +275,6 @@ class EmployeeListView(APIView):
         } for emp in employees]
 
         return Response(data)
-
-
-class AssignTaskPageView(View):
-    """Renders the assign task page — manager only"""
-    def get(self, request):
-        if not request.COOKIES.get('access_token'):
-            return redirect('/')
-        return render(request, 'assign_task.html')
-
-class MyTasksPageView(View):
-    def get(self, request):
-        if not request.COOKIES.get('access_token'):
-            return redirect('/')
-        return render(request, 'my_tasks.html')
-
-class TeamViewPageView(View):
-    def get(self, request):
-        if not request.COOKIES.get('access_token'):
-            return redirect('/')
-        return render(request, 'team_view.html')
-
-
-class NotificationsPageView(View):
-    """Renders the notifications page — all roles."""
-    def get(self, request):
-        if not request.COOKIES.get('access_token'):
-            return redirect('/')
-        return render(request, 'notifications.html')
 
 
 class HierarchyPageView(View):

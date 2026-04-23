@@ -1,8 +1,10 @@
 """
 notifications/views.py
-REST API endpoints for the Notification model.
+Notification API endpoints and page views.
 """
 
+from django.shortcuts import render, redirect
+from django.views import View
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -69,3 +71,13 @@ class NotificationUnreadCountView(APIView):
     def get(self, request):
         count = Notification.objects.filter(user=request.user, is_read=False).count()
         return Response({'count': count})
+
+
+# ─── Page View ────────────────────────────────────────────
+
+class NotificationsPageView(View):
+    """Renders the notifications page — all roles."""
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'notifications.html')

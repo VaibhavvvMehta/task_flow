@@ -1,4 +1,5 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.views import View
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.db.models import Count, Q
@@ -13,8 +14,6 @@ from .serializers import (
     TaskUpdateSerializer, TaskStatusUpdateSerializer,
 )
 from notifications.utils import notify
-
-# Create your views here.
 
 User = get_user_model()
 
@@ -423,3 +422,33 @@ class ManagerTeamView(APIView):
             })
 
         return Response(result)
+
+
+# ─── Page Views ───────────────────────────────────────────
+
+class MyTasksPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'my_tasks.html')
+
+
+class ManagerTasksPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'manager_task.html')
+
+
+class TeamViewPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'team_view.html')
+
+
+class AssignTaskPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'assign_task.html')

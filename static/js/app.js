@@ -131,7 +131,16 @@ async function loadUnreadCount() {
 
 async function loadUser() {
   try {
-    const res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+    let res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+
+    if (res.status === 401) {
+      const refresh = await fetch('/api/v1/auth/token/refresh/', {
+        method: 'POST', credentials: 'include',
+      });
+      if (!refresh.ok) { window.location.href = '/'; return; }
+      res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+    }
+
     if (!res.ok) { window.location.href = '/'; return; }
     const user = await res.json();
 
