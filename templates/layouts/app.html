@@ -149,18 +149,18 @@
             <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
             <path d="M13.73 21a2 2 0 01-3.46 0"/>
           </svg>
-          {% if unread_count %}
-          <span style="
+          <span id="notif-badge" style="
+            display:none;
             position:absolute;top:-4px;right:-4px;
-            width:16px;height:16px;
+            min-width:16px;height:16px;
             background:#ef4444;
-            border-radius:50%;
+            border-radius:8px;
             font-size:9px;font-weight:700;
             color:white;
-            display:flex;align-items:center;justify-content:center;
+            align-items:center;justify-content:center;
             border:2px solid var(--surface);
-          ">{{ unread_count }}</span>
-          {% endif %}
+            padding:0 3px;
+          ">0</span>
         </a>
 
         <!-- Dark mode toggle -->

@@ -1,6 +1,8 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.views import View
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.db.models import Count, Q
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,8 +13,7 @@ from .serializers import (
     TaskSerializer, TaskCreateSerializer,
     TaskUpdateSerializer, TaskStatusUpdateSerializer,
 )
-
-# Create your views here.
+from notifications.utils import notify
 
 User = get_user_model()
 
@@ -38,7 +39,7 @@ class MyTaskListView(APIView):
         tasks = Task.objects.filter(
             assigned_to=request.user,
             is_deleted=False,
-        ).select_related('assigned_to', 'created_by').order_by('-created_at')
+        ).select_related('assigned_to', 'created_by').prefetch_related('status_history').order_by('-created_at')
 
         status_filter   = request.query_params.get('status', '').strip()
         priority_filter = request.query_params.get('priority', '').strip()
@@ -88,6 +89,7 @@ class TaskDetailView(APIView):
         serializer = TaskUpdateSerializer(task, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            task.refresh_from_db()
             return Response(TaskSerializer(task).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -132,6 +134,14 @@ class TaskCreateView(APIView):
             assigned_by=request.user,
         )
 
+        notify(
+            user=task.assigned_to,
+            notif_type='task_assigned',
+            title='New Task Assigned',
+            message=f'You have been assigned "{task.title}" by {request.user.first_name} {request.user.last_name}.'.strip(),
+            task=task,
+        )
+
         return Response(TaskSerializer(task).data, status=status.HTTP_201_CREATED)
 
 
@@ -171,6 +181,13 @@ class TeamAssignView(APIView):
                     task=task,
                     assigned_to=task.assigned_to,
                     assigned_by=request.user,
+                )
+                notify(
+                    user=task.assigned_to,
+                    notif_type='task_assigned',
+                    title='New Task Assigned',
+                    message=f'You have been assigned "{task.title}" by {request.user.first_name} {request.user.last_name}.'.strip(),
+                    task=task,
                 )
                 created_tasks.append(TaskSerializer(task).data)
             else:
@@ -220,7 +237,35 @@ class TaskStatusUpdateView(APIView):
         )
 
         task.status = new_status
-        task.save()
+        if new_status == 'done':
+            task.done_at = timezone.now()
+        elif old_status == 'done':
+            # Task moved back out of done — clear the timestamp
+            task.done_at = None
+        task.save(update_fields=['status', 'done_at', 'updated_at'])
+
+        STATUS_LABELS = {'todo': 'To Do', 'in_progress': 'In Progress', 'done': 'Done'}
+        old_label = STATUS_LABELS.get(old_status, old_status)
+        new_label = STATUS_LABELS.get(new_status, new_status)
+
+        # Employee updates → notify the task creator (manager)
+        if request.user.role == 'employee' and task.created_by and task.created_by != request.user:
+            notify(
+                user=task.created_by,
+                notif_type='task_status_changed',
+                title='Task Status Updated',
+                message=f'{request.user.first_name} {request.user.last_name} changed "{task.title}" from {old_label} to {new_label}.'.strip(),
+                task=task,
+            )
+        # Manager/admin updates → notify the assigned employee
+        elif request.user.role in ['manager', 'admin'] and task.assigned_to != request.user:
+            notify(
+                user=task.assigned_to,
+                notif_type='task_status_changed',
+                title='Task Status Updated',
+                message=f'Your task "{task.title}" was changed from {old_label} to {new_label} by {request.user.first_name} {request.user.last_name}.'.strip(),
+                task=task,
+            )
 
         return Response({
             'message': f'Status updated: {old_status} → {new_status}',
@@ -263,6 +308,14 @@ class TaskReassignView(APIView):
             assigned_by=request.user,
         )
 
+        notify(
+            user=new_user,
+            notif_type='task_assigned',
+            title='Task Reassigned to You',
+            message=f'You have been assigned "{task.title}" by {request.user.first_name} {request.user.last_name}.'.strip(),
+            task=task,
+        )
+
         return Response({
             'message': f'Task reassigned to {new_user.first_name} {new_user.last_name}'.strip(),
             'task':    TaskSerializer(task).data,
@@ -286,7 +339,7 @@ class ManagerOwnTasksView(APIView):
         tasks = Task.objects.filter(
             assigned_to=request.user,
             is_deleted=False,
-        ).select_related('assigned_to', 'created_by').order_by('-created_at')
+        ).select_related('assigned_to', 'created_by').prefetch_related('status_history').order_by('-created_at')
 
         status_filter   = request.query_params.get('status', '').strip()
         priority_filter = request.query_params.get('priority', '').strip()
@@ -315,20 +368,43 @@ class ManagerTeamView(APIView):
 
         today = timezone.now().date()
 
-        # Only employees in manager's own department
+        # Single query: annotate all counts directly on the employee queryset
         employees = User.objects.filter(
+            manager=request.user,
             role='employee',
             is_active=True,
-            department=request.user.department,
+        ).annotate(
+            total_tasks=Count(
+                'assigned_tasks',
+                filter=Q(assigned_tasks__is_deleted=False),
+            ),
+            todo_count=Count(
+                'assigned_tasks',
+                filter=Q(assigned_tasks__is_deleted=False, assigned_tasks__status='todo'),
+            ),
+            in_progress_count=Count(
+                'assigned_tasks',
+                filter=Q(assigned_tasks__is_deleted=False, assigned_tasks__status='in_progress'),
+            ),
+            done_count=Count(
+                'assigned_tasks',
+                filter=Q(assigned_tasks__is_deleted=False, assigned_tasks__status='done'),
+            ),
+            overdue_count=Count(
+                'assigned_tasks',
+                filter=Q(
+                    assigned_tasks__is_deleted=False,
+                    assigned_tasks__status__in=['todo', 'in_progress'],
+                    assigned_tasks__due_date__lt=today,
+                ),
+            ),
         )
 
         result = []
         for emp in employees:
-            tasks   = Task.objects.filter(assigned_to=emp, is_deleted=False)
-            overdue = tasks.filter(
-                status__in=['todo', 'in_progress'],
-                due_date__lt=today
-            )
+            tasks = Task.objects.filter(
+                assigned_to=emp, is_deleted=False
+            ).select_related('assigned_to', 'created_by').prefetch_related('status_history').order_by('-created_at')
 
             result.append({
                 'id':         emp.id,
@@ -336,15 +412,43 @@ class ManagerTeamView(APIView):
                 'email':      emp.email,
                 'department': emp.department,
                 'task_counts': {
-                    'total':       tasks.count(),
-                    'todo':        tasks.filter(status='todo').count(),
-                    'in_progress': tasks.filter(status='in_progress').count(),
-                    'done':        tasks.filter(status='done').count(),
-                    'overdue':     overdue.count(),
+                    'total':       emp.total_tasks,
+                    'todo':        emp.todo_count,
+                    'in_progress': emp.in_progress_count,
+                    'done':        emp.done_count,
+                    'overdue':     emp.overdue_count,
                 },
-                'tasks': TaskSerializer(
-                    tasks.order_by('-created_at'), many=True
-                ).data,
+                'tasks': TaskSerializer(tasks, many=True).data,
             })
 
         return Response(result)
+
+
+# ─── Page Views ───────────────────────────────────────────
+
+class MyTasksPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'my_tasks.html')
+
+
+class ManagerTasksPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'manager_task.html')
+
+
+class TeamViewPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'team_view.html')
+
+
+class AssignTaskPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'assign_task.html')

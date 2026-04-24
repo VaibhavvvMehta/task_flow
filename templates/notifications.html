@@ -1,0 +1,345 @@
+{% extends 'layouts/app.html' %}
+{% load static %}
+
+{% block page_title %}Notifications{% endblock %}
+{% block page_subtitle %}Stay updated on your tasks and team activity{% endblock %}
+
+{% block app_content %}
+
+<!-- Toast -->
+<div id="toast" style="
+  display:none;position:fixed;bottom:24px;right:24px;z-index:999;
+  padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;
+  box-shadow:0 8px 24px rgba(0,0,0,0.12);transition:opacity 0.3s;
+"></div>
+
+<!-- Header row -->
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+
+  <!-- Filter tabs -->
+  <div style="display:flex;gap:6px;">
+    <button class="filter-pill active" onclick="setTab('all')" id="tab-all">All</button>
+    <button class="filter-pill" onclick="setTab('unread')" id="tab-unread">
+      <span id="unread-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-right:5px;"></span>
+      Unread
+    </button>
+  </div>
+
+  <!-- Mark all read -->
+  <button onclick="markAllRead()" id="mark-all-btn" style="
+    display:none;
+    padding:7px 16px;border-radius:8px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text-2);
+    font-size:12px;font-weight:600;font-family:'Inter',sans-serif;
+    cursor:pointer;transition:all 0.15s;
+  " onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='var(--surface)'">
+    Mark all as read
+  </button>
+</div>
+
+<!-- Notification list -->
+<div id="notif-list">
+  <div class="card" style="border-radius:12px;padding:40px;text-align:center;">
+    <div style="font-size:13px;color:var(--text-3);">Loading notifications...</div>
+  </div>
+</div>
+
+<style>
+  .filter-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+  }
+  .filter-pill:hover { background: var(--bg); color: var(--text); }
+  .filter-pill.active { background: var(--blue); color: white; border-color: var(--blue); }
+  .filter-pill.active span { background: rgba(255,255,255,0.7) !important; }
+
+  .notif-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .notif-row:last-child { border-bottom: none; }
+  .notif-row:hover { background: var(--bg); }
+  .notif-row.unread { background: var(--blue-light, #eff6ff); }
+  .notif-row.unread:hover { background: #dbeafe; }
+</style>
+
+{% endblock %}
+
+{% block page_js %}
+<script>
+// unreadNotifs: loaded on page open (fast, small set)
+// allNotifs:    loaded lazily when user clicks "All"
+let unreadNotifs = null;   // null = not loaded yet
+let allNotifs    = null;   // null = not loaded yet
+let activeTab    = 'unread';
+
+// ── Type config ────────────────────────────────────────────────────────────
+const TYPE_CONFIG = {
+  task_assigned:       { icon: '📋', color: '#2563eb', bg: '#eff6ff',  label: 'Task Assigned' },
+  task_status_changed: { icon: '🔄', color: '#7c3aed', bg: '#f5f3ff',  label: 'Status Changed' },
+  task_overdue:        { icon: '⚠️', color: '#dc2626', bg: '#fef2f2',  label: 'Overdue' },
+  task_due_reminder:   { icon: '⏰', color: '#d97706', bg: '#fffbeb',  label: 'Reminder' },
+  task_comment_added:  { icon: '💬', color: '#059669', bg: '#f0fdf4',  label: 'Comment' },
+};
+
+// ── Init — load only unread first ──────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Activate unread tab pill
+  document.getElementById('tab-unread').classList.add('active');
+  document.getElementById('tab-all').classList.remove('active');
+  loadUnread();
+});
+
+async function loadUnread() {
+  if (unreadNotifs !== null) { render(); return; }   // already fetched
+  setListLoading();
+  try {
+    const res = await fetch('/api/v1/notifications/?unread=true', { credentials: 'include' });
+    if (res.status === 401) { window.location.href = '/'; return; }
+    if (!res.ok) throw new Error();
+    unreadNotifs = await res.json();
+    render();
+    updateMarkAllBtn();
+  } catch(e) {
+    showLoadError('loadUnread()');
+  }
+}
+
+async function loadAll() {
+  if (allNotifs !== null) { render(); return; }      // already fetched
+  setListLoading();
+  try {
+    const res = await fetch('/api/v1/notifications/', { credentials: 'include' });
+    if (res.status === 401) { window.location.href = '/'; return; }
+    if (!res.ok) throw new Error();
+    allNotifs = await res.json();
+    // Sync any read-state changes made while on "unread" tab
+    if (unreadNotifs) {
+      const readIds = new Set(unreadNotifs.filter(n => n.is_read).map(n => n.id));
+      allNotifs.forEach(n => { if (readIds.has(n.id)) n.is_read = true; });
+    }
+    render();
+    updateMarkAllBtn();
+  } catch(e) {
+    showLoadError('loadAll()');
+  }
+}
+
+// ── Tab switch — lazy per-tab fetch ─────────────────────────────────────────
+function setTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'unread') loadUnread();
+  else                  loadAll();
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function setListLoading() {
+  document.getElementById('notif-list').innerHTML = `
+    <div class="card" style="border-radius:12px;padding:40px;text-align:center;">
+      <div style="font-size:13px;color:var(--text-3);">Loading…</div>
+    </div>`;
+}
+
+function showLoadError(retryFn) {
+  document.getElementById('notif-list').innerHTML = `
+    <div class="card" style="border-radius:12px;padding:40px;text-align:center;">
+      <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px;">Unable to load notifications</div>
+      <button onclick="${retryFn}" style="
+        padding:7px 18px;border-radius:8px;border:none;background:var(--blue);
+        color:white;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+        Retry
+      </button>
+    </div>`;
+}
+
+// Active dataset for the current tab
+function currentList() {
+  return activeTab === 'unread' ? (unreadNotifs || []) : (allNotifs || []);
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function render() {
+  const list = currentList();
+  const el   = document.getElementById('notif-list');
+
+  // Unread dot on the "Unread" tab pill
+  const hasUnread = (unreadNotifs || []).some(n => !n.is_read);
+  document.getElementById('unread-dot').style.display = hasUnread ? 'inline-block' : 'none';
+
+  if (!list.length) {
+    el.innerHTML = `
+      <div class="card" style="border-radius:12px;padding:56px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:14px;">🔔</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">
+          ${activeTab === 'unread' ? 'All caught up!' : 'No notifications yet'}
+        </div>
+        <div style="font-size:12px;color:var(--text-3);">
+          ${activeTab === 'unread'
+            ? 'You have no unread notifications.'
+            : 'Notifications will appear here when tasks are assigned or updated.'}
+        </div>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card" style="border-radius:12px;overflow:hidden;">
+      ${list.map(n => renderRow(n)).join('')}
+    </div>`;
+}
+
+function renderRow(n) {
+  const cfg  = TYPE_CONFIG[n.type] || { icon: '🔔', color: '#64748b', bg: '#f8fafc', label: n.type };
+  const time = relativeTime(n.created_at);
+
+  return `
+    <div class="notif-row ${n.is_read ? '' : 'unread'}"
+         onclick="markRead(${n.id})"
+         id="notif-${n.id}">
+
+      <!-- Icon bubble -->
+      <div style="
+        width:38px;height:38px;flex-shrink:0;
+        border-radius:10px;
+        background:${cfg.bg};
+        display:flex;align-items:center;justify-content:center;
+        font-size:17px;
+      ">${cfg.icon}</div>
+
+      <!-- Content -->
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+          <span style="font-size:13px;font-weight:${n.is_read ? '500' : '700'};color:var(--text);">
+            ${escHtml(n.title)}
+          </span>
+          <span style="
+            font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;
+            background:${cfg.bg};color:${cfg.color};flex-shrink:0;
+          ">${cfg.label}</span>
+          ${!n.is_read ? `<span style="
+            width:7px;height:7px;border-radius:50%;
+            background:#ef4444;flex-shrink:0;margin-left:auto;
+          "></span>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-2);margin-bottom:5px;line-height:1.5;">
+          ${escHtml(n.message)}
+        </div>
+        <div style="font-size:11px;color:var(--text-3);">${time}</div>
+      </div>
+
+    </div>`;
+}
+
+// ── Mark single read ─────────────────────────────────────────────────────────
+async function markRead(id) {
+  // Find in whichever cache has it
+  const inUnread = (unreadNotifs || []).find(n => n.id === id);
+  const inAll    = (allNotifs    || []).find(n => n.id === id);
+  const notif    = inUnread || inAll;
+  if (!notif || notif.is_read) return;
+
+  try {
+    const res = await fetch(`/api/v1/notifications/${id}/read/`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) return;
+
+    // Sync both caches
+    if (inUnread) inUnread.is_read = true;
+    if (inAll)    inAll.is_read    = true;
+
+    // Decrement topbar badge
+    const badge = document.getElementById('notif-badge');
+    if (badge) {
+      const next = Math.max(0, (parseInt(badge.textContent) || 0) - 1);
+      next === 0 ? badge.style.display = 'none' : (badge.textContent = next);
+    }
+    render();
+    updateMarkAllBtn();
+  } catch(e) { /* silent */ }
+}
+
+// ── Mark all read ────────────────────────────────────────────────────────────
+async function markAllRead() {
+  try {
+    const res = await fetch('/api/v1/notifications/mark-all-read/', {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error();
+
+    // Sync both caches
+    (unreadNotifs || []).forEach(n => n.is_read = true);
+    (allNotifs    || []).forEach(n => n.is_read = true);
+
+    render();
+    updateMarkAllBtn();
+
+    const badge = document.getElementById('notif-badge');
+    if (badge) badge.style.display = 'none';
+
+    showToast('All notifications marked as read', 'success');
+  } catch(e) {
+    showToast('Failed to mark notifications as read', 'error');
+  }
+}
+
+function updateMarkAllBtn() {
+  const hasUnread = (unreadNotifs || []).some(n => !n.is_read)
+                 || (allNotifs    || []).some(n => !n.is_read);
+  document.getElementById('mark-all-btn').style.display = hasUnread ? 'block' : 'none';
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function relativeTime(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins  = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days  = Math.floor(diff / 86400000);
+  if (mins < 1)  return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days === 1) return 'Yesterday';
+  return `${days} days ago`;
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer = null;
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = type === 'success' ? '#16a34a' : '#ef4444';
+  t.style.color = 'white';
+  t.style.display = 'block';
+  t.style.opacity = '1';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    t.style.opacity = '0';
+    setTimeout(() => { t.style.display = 'none'; }, 300);
+  }, 3000);
+}
+</script>
+{% endblock %}
