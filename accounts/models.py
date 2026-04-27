@@ -5,12 +5,18 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+EXECUTIVE_ROLES = ['ceo', 'cfo', 'cto']
+ELEVATED_ROLES  = ['manager', 'ceo', 'cfo', 'cto']
+
+
 class User(AbstractUser):
 
     ROLE_CHOICES = [
         ('employee', 'Employee'),
         ('manager',  'Manager'),
-        ('admin',    'Admin'),
+        ('ceo',      'CEO'),
+        ('cfo',      'CFO'),
+        ('cto',      'CTO'),
     ]
 
     role       = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
@@ -20,7 +26,6 @@ class User(AbstractUser):
         null=True, blank=True,
         on_delete=models.SET_NULL,
         related_name='direct_reports',
-        limit_choices_to={'role': 'manager'},
     )
 
     def __str__(self):
