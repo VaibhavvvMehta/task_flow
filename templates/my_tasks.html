@@ -118,25 +118,40 @@
 
     <!-- Chart + legend -->
     <div class="card" style="border-radius:12px;padding:24px;">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:20px;">Task Breakdown</div>
+      <!-- Title with info tooltip -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+        <span style="font-size:13px;font-weight:600;color:var(--text);">Task Breakdown</span>
+        <div style="position:relative;display:inline-flex;">
+          <span style="
+            width:16px;height:16px;border-radius:50%;border:1px solid var(--text-3);
+            display:inline-flex;align-items:center;justify-content:center;
+            font-size:10px;font-weight:700;color:var(--text-3);
+            cursor:help;user-select:none;line-height:1;flex-shrink:0;
+          "
+            onmouseenter="document.getElementById('info-tooltip').style.opacity='1';document.getElementById('info-tooltip').style.pointerEvents='auto';"
+            onmouseleave="document.getElementById('info-tooltip').style.opacity='0';document.getElementById('info-tooltip').style.pointerEvents='none';">i</span>
+          <div id="info-tooltip" style="
+            position:absolute;left:22px;top:0;z-index:50;
+            width:288px;padding:12px;border-radius:10px;
+            font-size:12px;line-height:1.7;
+            box-shadow:0 8px 24px rgba(0,0,0,0.12);
+            opacity:0;pointer-events:none;
+            transition:opacity 0.15s;
+            background:var(--surface);border:1px solid var(--border);color:var(--text-3);
+          ">
+            <b style="color:var(--text-2);">On Time</b> — done tasks completed on or before their due date.<br>
+            <b style="color:var(--text-2);">Late</b> — done tasks completed after their due date.<br>
+            <b style="color:var(--text-2);">Done (no due date)</b> — completed tasks with no due date set.<br>
+            <b style="color:var(--text-2);">Not Done</b> — tasks still in To Do or In Progress.<br>
+            <em>Completion Rate = Done ÷ Total × 100.</em>
+          </div>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:32px;flex-wrap:wrap;">
         <div style="position:relative;width:180px;height:180px;flex-shrink:0;">
           <canvas id="perf-chart" width="180" height="180"></canvas>
         </div>
         <div id="perf-legend" style="display:flex;flex-direction:column;gap:10px;"></div>
-      </div>
-    </div>
-
-    <!-- How numbers are calculated -->
-    <div class="card" style="border-radius:12px;padding:20px;margin-top:14px;">
-      <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em;">How these numbers are calculated</div>
-      <div style="font-size:12px;color:var(--text-3);line-height:1.7;">
-        <b style="color:var(--text-2);">Total Tasks</b> — all active tasks assigned to you (soft-deleted tasks are excluded).<br>
-        <b style="color:var(--text-2);">Completed</b> — tasks with status <em>Done</em>.<br>
-        <b style="color:var(--text-2);">Completion Rate</b> — Completed ÷ Total × 100.<br>
-        <b style="color:var(--text-2);">On Time</b> — Done tasks that have a due date, where the completion timestamp's date ≤ due date.<br>
-        <b style="color:var(--text-2);">Late</b> — Done tasks that have a due date, where the completion timestamp's date &gt; due date.<br>
-        <em>Done tasks without a due date are counted in Completed but not in On Time or Late.</em>
       </div>
     </div>
 
@@ -279,7 +294,6 @@
 {% endblock %}
 
 {% block page_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script>
 // ── Tab switching ──────────────────────────────────────────────────────────
 let perfLoaded = false;
@@ -298,14 +312,26 @@ function switchTab(tab) {
   if (isPerf && !perfLoaded) loadPerformance();
 }
 
-// Auto-activate performance tab if URL hash is #performance
 document.addEventListener('DOMContentLoaded', () => {
   if (window.location.hash === '#performance') switchTab('performance');
 });
 
+// ── Load Chart.js on demand ────────────────────────────────────────────────
+function loadChartJs() {
+  if (window.Chart) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js';
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
 // ── Load performance data ──────────────────────────────────────────────────
 async function loadPerformance() {
   try {
+    await loadChartJs();
     const res = await fetch('/api/v1/reports/my-performance/', { credentials: 'include' });
     if (res.status === 401) { window.location.href = '/'; return; }
     if (!res.ok) throw new Error();
@@ -328,15 +354,14 @@ function renderPerformance(d) {
   document.getElementById('pc-ontime').textContent = d.on_time_count;
   document.getElementById('pc-late').textContent   = d.late_count;
 
-  // Chart segments: On Time | Late | Done (no due date) | Not Done
   const doneNoDue = d.done_tasks - d.on_time_count - d.late_count;
   const notDone   = d.total_tasks - d.done_tasks;
 
   const segments = [
-    { label: 'On Time',          value: d.on_time_count, color: '#16a34a' },
-    { label: 'Late',             value: d.late_count,    color: '#ef4444' },
-    { label: 'Done (no due date)', value: doneNoDue,     color: '#2563eb' },
-    { label: 'Not Done',         value: notDone,         color: '#cbd5e1' },
+    { label: 'On Time',           value: d.on_time_count, color: '#16a34a' },
+    { label: 'Late',              value: d.late_count,    color: '#ef4444' },
+    { label: 'Done (no due date)', value: doneNoDue,      color: '#2563eb' },
+    { label: 'Not Done',          value: notDone,         color: '#cbd5e1' },
   ].filter(s => s.value > 0);
 
   if (perfChart) perfChart.destroy();
@@ -379,10 +404,9 @@ function renderPerformance(d) {
 
 // ── State ──────────────────────────────────────────────────────────────────
 let allTasks    = [];
-let activeFilter = 'todo';
+let activeFilter = 'all';
 let updatingId   = null;
 
-// ── Status config ──────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   todo:        { label: 'To Do',      color: '#94a3b8', bg: 'var(--bg)',  textColor: 'var(--text-2)' },
   in_progress: { label: 'In Progress', color: '#2563eb', bg: '#eff6ff',   textColor: '#2563eb' },
@@ -404,17 +428,12 @@ const ALL_STATUSES = [
 // ── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadTasks();
-  // Start with To Do pill active
-  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-  document.getElementById('pill-todo').classList.add('active');
 });
 
-// hashchange lets the sidebar Performance link work without a page reload
 window.addEventListener('hashchange', () => {
   switchTab(window.location.hash === '#performance' ? 'performance' : 'tasks');
 });
 
-// Close modal on backdrop click
 document.getElementById('status-modal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
@@ -443,11 +462,8 @@ async function loadTasks() {
 // ── Filter logic ───────────────────────────────────────────────────────────
 function setFilter(filter) {
   activeFilter = filter;
-
-  // Update pill styles
   document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
   document.getElementById('pill-' + filter).classList.add('active');
-
   applyFilters();
 }
 
@@ -457,14 +473,12 @@ function applyFilters() {
 
   let filtered = allTasks;
 
-  // Status / overdue filter
   if (activeFilter === 'overdue') {
     filtered = filtered.filter(t => t.due_date && t.due_date < today && t.status !== 'done');
   } else if (activeFilter !== 'all') {
     filtered = filtered.filter(t => t.status === activeFilter);
   }
 
-  // Search filter
   if (q) {
     filtered = filtered.filter(t =>
       t.title.toLowerCase().includes(q) ||
@@ -516,7 +530,6 @@ function renderTaskRow(t, today) {
     <div class="task-card">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
 
-        <!-- Left: title + meta -->
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
             <span style="font-size:13px;font-weight:600;color:var(--text);
@@ -534,12 +547,10 @@ function renderTaskRow(t, today) {
             </div>` : ''}
 
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <!-- Priority badge -->
             <span class="priority-badge"
               style="background:${pc.bg};color:${pc.color};">
               ${pc.label}
             </span>
-            <!-- Due date -->
             <span style="font-size:12px;">${dueText}</span>
             ${t.assigned_by_name ? `
               <span style="font-size:12px;color:var(--text-3);">From ${escHtml(t.assigned_by_name)}</span>
@@ -547,7 +558,6 @@ function renderTaskRow(t, today) {
           </div>
         </div>
 
-        <!-- Right: status badge + action button -->
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
           <span style="
             font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;
@@ -573,7 +583,6 @@ function openModal(taskId, taskTitle, currentStatus) {
   updatingId = taskId;
   document.getElementById('modal-task-title').textContent = taskTitle;
 
-  // Build status options (exclude current)
   const opts = document.getElementById('modal-status-options');
   opts.innerHTML = ALL_STATUSES.map(s => `
     <button class="modal-status-option ${s.value === currentStatus ? 'current' : ''}"
@@ -608,7 +617,6 @@ async function updateStatus(taskId, newStatus) {
     if (res.status === 401) { window.location.href = '/'; return; }
 
     if (res.ok) {
-      // Update local state
       const idx = allTasks.findIndex(t => t.id === taskId);
       if (idx !== -1) allTasks[idx].status = newStatus;
       applyFilters();

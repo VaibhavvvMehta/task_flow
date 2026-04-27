@@ -1,29 +1,35 @@
+// let currentRole = null;
+
 function buildNav(role) {
   const nav = document.getElementById('sidebar-nav');
   const currentPath = window.location.pathname;
 
   const navItems = {
     employee: [
-      { href: '/dashboard/',             icon: 'grid',    label: 'Dashboard' },
-      { href: '/tasks/',                 icon: 'check',   label: 'My Tasks' },
-      { href: '/tasks/#performance',     icon: 'chart',   label: 'Performance' },
-      { href: '/hierarchy/',             icon: 'sitemap', label: 'Hierarchy' },
-      { href: '/notifications/',         icon: 'bell',    label: 'Notifications' },
+      { href: '/dashboard/',         icon: 'grid',    label: 'Dashboard' },
+      { href: '/tasks/',             icon: 'check',   label: 'My Tasks' },
+      { href: '/reports/',           icon: 'reports', label: 'Reports' },
+      { href: '/hierarchy/',         icon: 'sitemap', label: 'Hierarchy' },
+      { href: '/notifications/',     icon: 'bell',    label: 'Notifications' },
+      { href: '/profile/',           icon: 'profile', label: 'My Profile' },
     ],
     manager: [
-      { href: '/dashboard/',                     icon: 'grid',    label: 'Dashboard' },
-      { href: '/manager/tasks/',                 icon: 'check',   label: 'My Tasks' },
-      { href: '/manager/tasks/#performance',     icon: 'chart',   label: 'Performance' },
-      { href: '/manager/assign/',                icon: 'plus',    label: 'Assign Task' },
-      { href: '/hierarchy/',                     icon: 'sitemap', label: 'Hierarchy' },
-      { href: '/notifications/',                 icon: 'bell',    label: 'Notifications' },
+      { href: '/dashboard/',         icon: 'grid',    label: 'Dashboard' },
+      { href: '/manager/tasks/',     icon: 'check',   label: 'My Tasks' },
+      { href: '/reports/',           icon: 'reports', label: 'Reports' },
+      { href: '/manager/assign/',    icon: 'plus',    label: 'Assign Task' },
+      { href: '/hierarchy/',         icon: 'sitemap', label: 'Hierarchy' },
+      { href: '/notifications/',     icon: 'bell',    label: 'Notifications' },
+      { href: '/profile/',           icon: 'profile', label: 'My Profile' },
     ],
     admin: [
       { href: '/dashboard/',         icon: 'grid',    label: 'Dashboard' },
       { href: '/admin-panel/users/', icon: 'users',   label: 'Users' },
       { href: '/admin-panel/tasks/', icon: 'check',   label: 'All Tasks' },
+      { href: '/reports/',           icon: 'reports', label: 'Reports' },
       { href: '/hierarchy/',         icon: 'sitemap', label: 'Hierarchy' },
       { href: '/notifications/',     icon: 'bell',    label: 'Notifications' },
+      { href: '/profile/',           icon: 'profile', label: 'My Profile' },
     ],
   };
 
@@ -35,7 +41,9 @@ function buildNav(role) {
     bell:    '<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>',
     plus:    '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
     users:   '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
-    sitemap: '<rect x="8" y="1" width="8" height="5" rx="1"/><rect x="1" y="17" width="8" height="5" rx="1"/><rect x="15" y="17" width="8" height="5" rx="1"/><path d="M12 6v4M4.5 17v-4h15v4" stroke-linecap="round"/>',
+    sitemap:  '<rect x="8" y="1" width="8" height="5" rx="1"/><rect x="1" y="17" width="8" height="5" rx="1"/><rect x="15" y="17" width="8" height="5" rx="1"/><path d="M12 6v4M4.5 17v-4h15v4" stroke-linecap="round"/>',
+    reports:  '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+    profile:  '<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   };
 
   const items = navItems[role] || navItems.employee;
@@ -153,6 +161,7 @@ async function loadUser() {
     document.getElementById('sidebar-name').textContent  = user.full_name;
     document.getElementById('sidebar-role').textContent  = user.role.charAt(0).toUpperCase() + user.role.slice(1);
 
+    currentRole = user.role;
     buildNav(user.role);
     enforceRoleRoute(user.role);
     loadUnreadCount();
@@ -174,6 +183,8 @@ window.addEventListener('hashchange', () => {
   if (typeof switchTab === 'function') {
     switchTab(window.location.hash === '#performance' ? 'performance' : 'tasks');
   }
+  // Rebuild nav so the active highlight tracks the current hash
+  if (currentRole) buildNav(currentRole);
 });
 
 // Init

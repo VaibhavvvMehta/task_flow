@@ -69,9 +69,9 @@ from datetime import timedelta
 
 # REST Framework
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'accounts.authentication.CookieJWTAuthentication',
-    ),
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "accounts.authentication.CookieJWTAuthentication",
+    ],
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
@@ -201,7 +201,7 @@ INTERNAL_IPS = ['127.0.0.1']
 
 
 
-# ── Redis Cache ───────────────────────────────────────────────────────────────
+# Redis Cache 
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -213,7 +213,7 @@ CACHES = {
     }
 }
 
-# ── Email — Gmail SMTP ────────────────────────────────────────────────────────
+#  Email — Gmail SMTP 
 EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST          = 'smtp.gmail.com'
 EMAIL_PORT          = 587
