@@ -44,8 +44,9 @@
         </select>
       </div>
       <div>
-        <label class="label" for="task-due">Due Date <span style="font-size:12px;color:var(--text-3);font-weight:400;">(optional)</span></label>
-        <input id="task-due" type="date" class="input-field"/>
+        <label class="label" for="task-due">Due Date <span style="color:var(--error);">*</span></label>
+        <input id="task-due" type="date" class="input-field" required/>
+        <div id="due-error" style="display:none;font-size:12px;color:var(--error);margin-top:4px;"></div>
       </div>
     </div>
 
@@ -170,6 +171,12 @@ async function submitTask() {
     return;
   }
 
+  if (!due_date) {
+    showFieldError('due-error', 'Due date is required.');
+    document.getElementById('task-due').focus();
+    return;
+  }
+
   if (selectedIds.size === 0) {
     showFieldError('assign-error', 'Please select at least one employee.');
     return;
@@ -241,7 +248,7 @@ function showFieldError(id, msg) {
 }
 
 function clearErrors() {
-  ['title-error', 'assign-error'].forEach(id => {
+  ['title-error', 'due-error', 'assign-error'].forEach(id => {
     const el = document.getElementById(id);
     el.textContent   = '';
     el.style.display = 'none';

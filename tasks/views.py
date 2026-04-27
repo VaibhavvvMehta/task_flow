@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.views import View
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
 from django.db.models import Count, Q
 from rest_framework.views import APIView
@@ -13,6 +14,7 @@ from .serializers import (
     TaskSerializer, TaskCreateSerializer,
     TaskUpdateSerializer, TaskStatusUpdateSerializer,
 )
+
 from notifications.utils import notify
 
 User = get_user_model()
@@ -25,7 +27,7 @@ def get_active_task(task_id):
         return None
 
 
-# ── My Tasks — all roles see their own assigned tasks ─────────────────────────
+# My Tasks — all roles see their own assigned tasks 
 
 class MyTaskListView(APIView):
     """
@@ -55,7 +57,7 @@ class MyTaskListView(APIView):
         return Response(TaskSerializer(tasks, many=True).data)
 
 
-# ── Task Detail / Edit / Soft Delete ─────────────────────────────────────────
+#  Task Detail / Edit / Delete 
 
 class TaskDetailView(APIView):
     """
@@ -109,43 +111,7 @@ class TaskDetailView(APIView):
         return Response({'message': 'Task deleted successfully.'})
 
 
-# ── Create Task (single assign) ───────────────────────────────────────────────
-
-class TaskCreateView(APIView):
-    """POST /api/v1/tasks/create/ — manager/admin assigns to one employee"""
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        if request.user.role not in ['manager', 'admin']:
-            return Response(
-                {'error': 'Only managers and admins can create tasks.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        serializer = TaskCreateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        task = serializer.save(created_by=request.user)
-
-        TaskAssignment.objects.create(
-            task=task,
-            assigned_to=task.assigned_to,
-            assigned_by=request.user,
-        )
-
-        notify(
-            user=task.assigned_to,
-            notif_type='task_assigned',
-            title='New Task Assigned',
-            message=f'You have been assigned "{task.title}" by {request.user.first_name} {request.user.last_name}.'.strip(),
-            task=task,
-        )
-
-        return Response(TaskSerializer(task).data, status=status.HTTP_201_CREATED)
-
-
-# ── Team Assign ───────────────────────────────────────────────────────────────
+# Team Assign
 
 class TeamAssignView(APIView):
     """
@@ -176,12 +142,13 @@ class TeamAssignView(APIView):
             data       = {**request.data, 'assigned_to': user_id}
             serializer = TaskCreateSerializer(data=data)
             if serializer.is_valid():
-                task = serializer.save(created_by=request.user)
-                TaskAssignment.objects.create(
-                    task=task,
-                    assigned_to=task.assigned_to,
-                    assigned_by=request.user,
-                )
+                with transaction.atomic():
+                    task = serializer.save(created_by=request.user)
+                    TaskAssignment.objects.create(
+                        task=task,
+                        assigned_to=task.assigned_to,
+                        assigned_by=request.user,
+                    )
                 notify(
                     user=task.assigned_to,
                     notif_type='task_assigned',
@@ -200,8 +167,7 @@ class TeamAssignView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
-# ── Status Update ─────────────────────────────────────────────────────────────
-
+# Status Update 
 class TaskStatusUpdateView(APIView):
     """
     PATCH /api/v1/tasks/<id>/status/
@@ -229,26 +195,25 @@ class TaskStatusUpdateView(APIView):
         if old_status == new_status:
             return Response({'message': 'Status unchanged.'})
 
-        TaskStatusHistory.objects.create(
-            task=task,
-            changed_by=request.user,
-            old_status=old_status,
-            new_status=new_status,
-        )
-
-        task.status = new_status
-        if new_status == 'done':
-            task.done_at = timezone.now()
-        elif old_status == 'done':
-            # Task moved back out of done — clear the timestamp
-            task.done_at = None
-        task.save(update_fields=['status', 'done_at', 'updated_at'])
+        with transaction.atomic():
+            TaskStatusHistory.objects.create(
+                task=task,
+                changed_by=request.user,
+                old_status=old_status,
+                new_status=new_status,
+            )
+            task.status = new_status
+            if new_status == 'done':
+                task.done_at = timezone.now()
+            elif old_status == 'done':
+                task.done_at = None
+            task.save(update_fields=['status', 'done_at', 'updated_at'])
 
         STATUS_LABELS = {'todo': 'To Do', 'in_progress': 'In Progress', 'done': 'Done'}
         old_label = STATUS_LABELS.get(old_status, old_status)
         new_label = STATUS_LABELS.get(new_status, new_status)
 
-        # Employee updates → notify the task creator (manager)
+        # Employee updates - notify the task creator (manager)
         if request.user.role == 'employee' and task.created_by and task.created_by != request.user:
             notify(
                 user=task.created_by,
@@ -257,7 +222,7 @@ class TaskStatusUpdateView(APIView):
                 message=f'{request.user.first_name} {request.user.last_name} changed "{task.title}" from {old_label} to {new_label}.'.strip(),
                 task=task,
             )
-        # Manager/admin updates → notify the assigned employee
+        # Manager/admin updates - notify the assigned employee
         elif request.user.role in ['manager', 'admin'] and task.assigned_to != request.user:
             notify(
                 user=task.assigned_to,
@@ -273,10 +238,10 @@ class TaskStatusUpdateView(APIView):
         })
 
 
-# ── Reassign ──────────────────────────────────────────────────────────────────
+#Reassign
 
 class TaskReassignView(APIView):
-    """PATCH /api/v1/tasks/<id>/assign/ — manager/admin reassigns to different employee"""
+    """PUT/PATCH /api/v1/tasks/<id>/assign/ — manager/admin reassigns to different employee"""
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, task_id):
@@ -299,14 +264,14 @@ class TaskReassignView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found or inactive.'}, status=status.HTTP_404_NOT_FOUND)
 
-        task.assigned_to = new_user
-        task.save()
-
-        TaskAssignment.objects.create(
-            task=task,
-            assigned_to=new_user,
-            assigned_by=request.user,
-        )
+        with transaction.atomic():
+            task.assigned_to = new_user
+            task.save()
+            TaskAssignment.objects.create(
+                task=task,
+                assigned_to=new_user,
+                assigned_by=request.user,
+            )
 
         notify(
             user=new_user,
@@ -321,8 +286,8 @@ class TaskReassignView(APIView):
             'task':    TaskSerializer(task).data,
         })
 
+    put = patch
 
-# ── Manager: Own Tasks ────────────────────────────────────────────────────────
 
 class ManagerOwnTasksView(APIView):
     """
@@ -351,8 +316,6 @@ class ManagerOwnTasksView(APIView):
 
         return Response(TaskSerializer(tasks, many=True).data)
 
-
-# ── Manager: Team View ────────────────────────────────────────────────────────
 
 class ManagerTeamView(APIView):
     """
@@ -424,7 +387,7 @@ class ManagerTeamView(APIView):
         return Response(result)
 
 
-# ─── Page Views ───────────────────────────────────────────
+# Frontend Views
 
 class MyTasksPageView(View):
     def get(self, request):

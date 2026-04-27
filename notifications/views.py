@@ -65,7 +65,7 @@ class NotificationMarkAllReadView(APIView):
 
 
 class NotificationUnreadCountView(APIView):
-    """GET /api/v1/notifications/unread-count/ — used for the bell badge in the topbar."""
+    """GET /api/v1/notifications/unread-count/ — used for the bell badge."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -73,7 +73,7 @@ class NotificationUnreadCountView(APIView):
         return Response({'count': count})
 
 
-# ─── Page View ────────────────────────────────────────────
+# Frontend View 
 
 class NotificationsPageView(View):
     """Renders the notifications page — all roles."""

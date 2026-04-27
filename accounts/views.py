@@ -1,5 +1,4 @@
 """
-accounts/views.py
 Handles authentication API endpoints and page rendering.
 """
 
@@ -40,7 +39,7 @@ def set_auth_cookies(response, tokens):
     return response
 
 
-# ─── API Views ────────────────────────────────────────────
+# API Views 
 
 class LoginView(APIView):
     """POST /api/v1/auth/login/ — returns JWT tokens + role for redirect."""
@@ -112,7 +111,10 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    """POST /api/v1/auth/logout/ — blacklists JWT tokens then clears cookies."""
+    """POST /api/v1/auth/logout/-
+       1. blacklist the JWTs in Redis.
+       2. delete token cookies from the browser.
+    """
 
     permission_classes = [AllowAny]
 
@@ -225,7 +227,7 @@ class MeView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-# ─── Page Views ───────────────────────────────────────────
+# Frontend Views
 
 class LoginPageView(View):
     """Renders the login HTML page. Redirects to dashboard if already logged in."""
@@ -276,6 +278,13 @@ class EmployeeListView(APIView):
 
         return Response(data)
 
+
+class ProfilePageView(View):
+    """Renders the user profile page — all roles."""
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'profile.html')
 
 class HierarchyPageView(View):
     """Renders the hierarchy / org-chart page — all roles."""

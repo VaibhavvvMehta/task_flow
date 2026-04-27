@@ -63,6 +63,7 @@ class TaskCreateSerializer(serializers.ModelSerializer):
     assigned_to = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(is_active=True)
     )
+    due_date = serializers.DateField(required=True)
 
     class Meta:
         model  = Task

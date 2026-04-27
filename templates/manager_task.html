@@ -45,7 +45,7 @@
     </button>
   </div>
 
-  <!-- Search + count -->
+  <!-- Search + task count -->
   <div style="display:flex;align-items:center;gap:10px;">
     <div style="position:relative;">
       <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-3);pointer-events:none;"
@@ -64,9 +64,10 @@
 
 </div>
 
-<!-- Toast -->
+<!-- Toast notification -->
 <div id="toast" style="
-  display:none;position:fixed;bottom:24px;right:24px;z-index:999;
+  display:none;
+  position:fixed;bottom:24px;right:24px;z-index:999;
   padding:12px 18px;border-radius:10px;
   font-size:13px;font-weight:600;color:white;
   box-shadow:0 8px 24px rgba(0,0,0,0.12);
@@ -85,7 +86,7 @@
 <!-- ── Performance Panel ──────────────────────────────────────────────────── -->
 <div id="panel-performance" style="display:none;">
 
-  <!-- Subject selector: own stats vs a team member -->
+  <!-- Subject selector -->
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
     <label style="font-size:13px;font-weight:600;color:var(--text-2);">Viewing performance for:</label>
     <select id="perf-user-select" onchange="onPerfUserChange()"
@@ -104,7 +105,7 @@
 
     <div id="perf-subject-name" style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:16px;"></div>
 
-    <!-- Stat cards -->
+    <!-- Stat cards row -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:28px;">
       <div class="card perf-card">
         <div class="perf-card-label">Total Tasks</div>
@@ -130,7 +131,35 @@
 
     <!-- Chart + legend -->
     <div class="card" style="border-radius:12px;padding:24px;">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:20px;">Task Breakdown</div>
+      <!-- Title with info tooltip -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+        <span style="font-size:13px;font-weight:600;color:var(--text);">Task Breakdown</span>
+        <div style="position:relative;display:inline-flex;">
+          <span style="
+            width:16px;height:16px;border-radius:50%;border:1px solid var(--text-3);
+            display:inline-flex;align-items:center;justify-content:center;
+            font-size:10px;font-weight:700;color:var(--text-3);
+            cursor:help;user-select:none;line-height:1;flex-shrink:0;
+          "
+            onmouseenter="document.getElementById('info-tooltip').style.opacity='1';document.getElementById('info-tooltip').style.pointerEvents='auto';"
+            onmouseleave="document.getElementById('info-tooltip').style.opacity='0';document.getElementById('info-tooltip').style.pointerEvents='none';">i</span>
+          <div id="info-tooltip" style="
+            position:absolute;left:22px;top:0;z-index:50;
+            width:288px;padding:12px;border-radius:10px;
+            font-size:12px;line-height:1.7;
+            box-shadow:0 8px 24px rgba(0,0,0,0.12);
+            opacity:0;pointer-events:none;
+            transition:opacity 0.15s;
+            background:var(--surface);border:1px solid var(--border);color:var(--text-3);
+          ">
+            <b style="color:var(--text-2);">On Time</b> — done tasks completed on or before their due date.<br>
+            <b style="color:var(--text-2);">Late</b> — done tasks completed after their due date.<br>
+            <b style="color:var(--text-2);">Done (no due date)</b> — completed tasks with no due date set.<br>
+            <b style="color:var(--text-2);">Not Done</b> — tasks still in To Do or In Progress.<br>
+            <em>Completion Rate = Done ÷ Total × 100.</em>
+          </div>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:32px;flex-wrap:wrap;">
         <div style="position:relative;width:180px;height:180px;flex-shrink:0;">
           <canvas id="perf-chart" width="180" height="180"></canvas>
@@ -139,24 +168,11 @@
       </div>
     </div>
 
-    <!-- How numbers are calculated -->
-    <div class="card" style="border-radius:12px;padding:20px;margin-top:14px;">
-      <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em;">How these numbers are calculated</div>
-      <div style="font-size:12px;color:var(--text-3);line-height:1.7;">
-        <b style="color:var(--text-2);">Total Tasks</b> — all active tasks assigned to the selected person (soft-deleted tasks excluded).<br>
-        <b style="color:var(--text-2);">Completed</b> — tasks with status <em>Done</em>.<br>
-        <b style="color:var(--text-2);">Completion Rate</b> — Completed ÷ Total × 100.<br>
-        <b style="color:var(--text-2);">On Time</b> — Done tasks that have a due date, where the completion timestamp's date ≤ due date.<br>
-        <b style="color:var(--text-2);">Late</b> — Done tasks that have a due date, where the completion timestamp's date &gt; due date.<br>
-        <em>Done tasks without a due date are counted in Completed but not in On Time or Late.</em>
-      </div>
-    </div>
-
   </div><!-- /perf-content -->
 
 </div><!-- /panel-performance -->
 
-<!-- Status modal -->
+<!-- Status update modal -->
 <div id="status-modal" style="
   display:none;position:fixed;inset:0;z-index:500;
   background:rgba(0,0,0,0.4);
@@ -167,8 +183,8 @@
       <h3 style="font-size:14px;font-weight:600;color:var(--text);">Update Status</h3>
       <button onclick="closeModal()" style="
         width:28px;height:28px;border-radius:6px;border:none;background:none;
-        cursor:pointer;color:var(--text-3);font-size:18px;line-height:1;
-        display:flex;align-items:center;justify-content:center;
+        cursor:pointer;color:var(--text-3);display:flex;align-items:center;justify-content:center;
+        font-size:18px;line-height:1;
       ">×</button>
     </div>
     <div style="font-size:13px;color:var(--text-2);margin-bottom:16px;" id="modal-task-title">—</div>
@@ -191,18 +207,36 @@
     display: inline-flex;
     align-items: center;
   }
-  .filter-pill:hover { background: var(--bg); color: var(--text); }
-  .filter-pill.active { background: var(--blue); color: white; border-color: var(--blue); }
-  .filter-pill.active span { background: rgba(255,255,255,0.7) !important; }
+  .filter-pill:hover {
+    background: var(--bg);
+    color: var(--text);
+  }
+  .filter-pill.active {
+    background: var(--blue);
+    color: white;
+    border-color: var(--blue);
+  }
+  .filter-pill.active span {
+    background: rgba(255,255,255,0.7) !important;
+  }
 
   .task-card {
     padding: 16px 18px;
     border-bottom: 1px solid var(--border);
     transition: background 0.1s;
+    cursor: default;
   }
   .task-card:last-child { border-bottom: none; }
   .task-card:hover { background: var(--bg); }
 
+  .priority-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
   .status-btn {
     padding: 5px 12px;
     border-radius: 6px;
@@ -216,8 +250,11 @@
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .status-btn:hover { background: var(--blue); color: white; border-color: var(--blue); }
-
+  .status-btn:hover {
+    background: var(--blue);
+    color: white;
+    border-color: var(--blue);
+  }
   .modal-status-option {
     padding: 10px 14px;
     border-radius: 8px;
@@ -233,9 +270,19 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
   }
-  .modal-status-option:hover { border-color: var(--blue); background: var(--blue-light); color: var(--blue); }
-  .modal-status-option.current { border-color: var(--blue); background: var(--blue-light); color: var(--blue); cursor: default; }
+  .modal-status-option:hover {
+    border-color: var(--blue);
+    background: var(--blue-light);
+    color: var(--blue);
+  }
+  .modal-status-option.current {
+    border-color: var(--blue);
+    background: var(--blue-light);
+    color: var(--blue);
+    cursor: default;
+  }
 
   .perf-card {
     border-radius: 10px;
@@ -261,30 +308,38 @@
 {% endblock %}
 
 {% block page_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script>
 // ── Tab switching ──────────────────────────────────────────────────────────
-let perfLoaded     = false;
-let perfChart      = null;
-let allEmployees   = [];
+let perfLoaded   = false;
+let perfChart    = null;
+let allEmployees = [];
 
 function switchTab(tab) {
   const isPerf = tab === 'performance';
   document.getElementById('panel-tasks').style.display       = isPerf ? 'none' : 'block';
   document.getElementById('panel-performance').style.display = isPerf ? 'block' : 'none';
 
-  document.getElementById('tab-tasks').style.color               = isPerf ? 'var(--text-3)' : 'var(--blue)';
-  document.getElementById('tab-tasks').style.borderBottomColor   = isPerf ? 'transparent' : 'var(--blue)';
-  document.getElementById('tab-performance').style.color             = isPerf ? 'var(--blue)' : 'var(--text-3)';
-  document.getElementById('tab-performance').style.borderBottomColor = isPerf ? 'var(--blue)' : 'transparent';
+  const tBtn = document.getElementById('tab-tasks');
+  const pBtn = document.getElementById('tab-performance');
+  tBtn.style.color             = isPerf ? 'var(--text-3)' : 'var(--blue)';
+  tBtn.style.borderBottomColor = isPerf ? 'transparent' : 'var(--blue)';
+  pBtn.style.color             = isPerf ? 'var(--blue)' : 'var(--text-3)';
+  pBtn.style.borderBottomColor = isPerf ? 'var(--blue)' : 'transparent';
 
-  if (isPerf && !perfLoaded) {
-    loadTeamMembers();   // populate dropdown first, then load own stats
-  }
+  if (isPerf && !perfLoaded) loadTeamMembers();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  loadTasks();
   if (window.location.hash === '#performance') switchTab('performance');
+});
+
+window.addEventListener('hashchange', () => {
+  switchTab(window.location.hash === '#performance' ? 'performance' : 'tasks');
+});
+
+document.getElementById('status-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
 });
 
 // ── Load team members for dropdown ────────────────────────────────────────
@@ -293,17 +348,15 @@ async function loadTeamMembers() {
     const res = await fetch('/api/v1/users/employees/', { credentials: 'include' });
     if (!res.ok) throw new Error();
     allEmployees = await res.json();
-
     const sel = document.getElementById('perf-user-select');
     allEmployees.forEach(emp => {
       const opt = document.createElement('option');
-      opt.value       = emp.id;
+      opt.value = emp.id;
       opt.textContent = emp.full_name || emp.email;
       sel.appendChild(opt);
     });
-  } catch(e) { /* dropdown stays with just "Me" */ }
-
-  loadPerformance();   // load own stats on first open
+  } catch(e) { /* stays with "Me" only */ }
+  loadPerformance();
 }
 
 function onPerfUserChange() {
@@ -313,17 +366,27 @@ function onPerfUserChange() {
   loadPerformance();
 }
 
+// ── Load Chart.js on demand ────────────────────────────────────────────────
+function loadChartJs() {
+  if (window.Chart) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js';
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
 // ── Load performance data ──────────────────────────────────────────────────
 async function loadPerformance() {
+  await loadChartJs();
   const userId = document.getElementById('perf-user-select').value;
-  const url    = '/api/v1/reports/my-performance/' + (userId ? `?user_id=${userId}` : '');
-
+  const url = '/api/v1/reports/my-performance/' + (userId ? `?user_id=${userId}` : '');
   try {
     const res = await fetch(url, { credentials: 'include' });
     if (res.status === 401) { window.location.href = '/'; return; }
     if (!res.ok) throw new Error();
-    const data = await res.json();
-    renderPerformance(data);
+    renderPerformance(await res.json());
     perfLoaded = true;
   } catch(e) {
     document.getElementById('perf-loading').innerHTML =
@@ -356,31 +419,23 @@ function renderPerformance(d) {
 
   if (perfChart) perfChart.destroy();
 
-  if (segments.length === 0 || d.total_tasks === 0) {
-    document.querySelector('#perf-chart').style.display = 'none';
+  if (!segments.length || d.total_tasks === 0) {
+    document.getElementById('perf-chart').style.display = 'none';
     document.getElementById('perf-legend').innerHTML =
       '<span style="font-size:12px;color:var(--text-3);">No tasks yet.</span>';
     return;
   }
 
-  document.querySelector('#perf-chart').style.display = '';
+  document.getElementById('perf-chart').style.display = '';
   perfChart = new Chart(document.getElementById('perf-chart'), {
     type: 'doughnut',
     data: {
-      labels:   segments.map(s => s.label),
-      datasets: [{
-        data:            segments.map(s => s.value),
-        backgroundColor: segments.map(s => s.color),
-        borderWidth:     2,
-        borderColor:     'var(--surface)',
-        hoverOffset:     6,
-      }],
+      labels: segments.map(s => s.label),
+      datasets: [{ data: segments.map(s => s.value), backgroundColor: segments.map(s => s.color), borderWidth: 2, borderColor: 'var(--surface)', hoverOffset: 6 }],
     },
     options: {
       cutout: '68%',
-      plugins: { legend: { display: false }, tooltip: {
-        callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` },
-      }},
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } } },
     },
   });
 
@@ -394,13 +449,13 @@ function renderPerformance(d) {
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
-let allTasks     = [];
-let activeFilter = 'todo';
+let allTasks    = [];
+let activeFilter = 'all';
 
 const STATUS_CONFIG = {
-  todo:        { label: 'To Do',       bg: 'var(--bg)', textColor: 'var(--text-2)', color: '#94a3b8' },
-  in_progress: { label: 'In Progress', bg: '#eff6ff',   textColor: '#2563eb',       color: '#2563eb' },
-  done:        { label: 'Done',        bg: '#f0fdf4',   textColor: '#16a34a',       color: '#16a34a' },
+  todo:        { label: 'To Do',       color: '#94a3b8', bg: 'var(--bg)',  textColor: 'var(--text-2)' },
+  in_progress: { label: 'In Progress', color: '#2563eb', bg: '#eff6ff',   textColor: '#2563eb' },
+  done:        { label: 'Done',        color: '#16a34a', bg: '#f0fdf4',   textColor: '#16a34a' },
 };
 
 const PRIORITY_CONFIG = {
@@ -415,22 +470,7 @@ const ALL_STATUSES = [
   { value: 'done',        label: 'Done',        dot: '#16a34a' },
 ];
 
-// ── Init ───────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  loadTasks();
-  // Start with To Do pill active
-  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-  document.getElementById('pill-todo').classList.add('active');
-});
-
-document.getElementById('status-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
-
-// hashchange lets the sidebar Performance link work without a page reload
-window.addEventListener('hashchange', () => {
-  switchTab(window.location.hash === '#performance' ? 'performance' : 'tasks');
-});
+const PILL_IDS = ['all', 'todo', 'in_progress', 'done', 'overdue'];
 
 // ── Load ───────────────────────────────────────────────────────────────────
 async function loadTasks() {
@@ -440,20 +480,18 @@ async function loadTasks() {
     if (res.status === 403) {
       document.getElementById('task-list').innerHTML = `
         <div class="card" style="border-radius:12px;padding:40px;text-align:center;">
-          <div style="font-size:13px;color:#ef4444;font-weight:500;">Access denied — managers only.</div>
+          <div style="font-size:13px;font-weight:500;color:#ef4444;">Access denied — managers only.</div>
         </div>`;
       return;
     }
     if (!res.ok) throw new Error();
-
     const data = await res.json();
-    allTasks   = data.results || data;
+    allTasks = data.results || data;
     applyFilters();
-
   } catch(e) {
     document.getElementById('task-list').innerHTML = `
       <div class="card" style="border-radius:12px;padding:40px;text-align:center;">
-        <div style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:8px;">Unable to load tasks</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px;">Unable to load tasks</div>
         <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;">Check your connection and try again.</div>
         <button onclick="loadTasks()" class="btn-primary" style="width:auto;padding:8px 20px;">Retry</button>
       </div>`;
@@ -463,15 +501,17 @@ async function loadTasks() {
 // ── Filters ────────────────────────────────────────────────────────────────
 function setFilter(filter) {
   activeFilter = filter;
-  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-  document.getElementById('pill-' + filter).classList.add('active');
+  PILL_IDS.forEach(id => {
+    const el = document.getElementById('pill-' + id);
+    if (!el) return;
+    el.classList.toggle('active', id === filter);
+  });
   applyFilters();
 }
 
 function applyFilters() {
   const today = new Date().toISOString().split('T')[0];
   const q     = document.getElementById('search-input').value.toLowerCase().trim();
-
   let filtered = allTasks;
 
   if (activeFilter === 'overdue') {
@@ -480,12 +520,10 @@ function applyFilters() {
     filtered = filtered.filter(t => t.status === activeFilter);
   }
 
-  if (q) {
-    filtered = filtered.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      (t.description && t.description.toLowerCase().includes(q))
-    );
-  }
+  if (q) filtered = filtered.filter(t =>
+    t.title.toLowerCase().includes(q) ||
+    (t.description && t.description.toLowerCase().includes(q))
+  );
 
   renderTasks(filtered);
 }
@@ -502,7 +540,7 @@ function renderTasks(tasks) {
     el.innerHTML = `
       <div class="card" style="border-radius:12px;padding:48px;text-align:center;">
         <div style="font-size:28px;margin-bottom:12px;">📋</div>
-        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">No tasks found</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">No tasks found</div>
         <div style="font-size:12px;color:var(--text-3);">
           ${activeFilter === 'all' ? "You don't have any tasks assigned to you." : "No tasks match this filter."}
         </div>
@@ -510,16 +548,13 @@ function renderTasks(tasks) {
     return;
   }
 
-  el.innerHTML = `
-    <div class="card" style="border-radius:12px;overflow:hidden;">
-      ${tasks.map(t => renderTaskRow(t, today)).join('')}
-    </div>`;
+  el.innerHTML = `<div class="card" style="border-radius:12px;overflow:hidden;">${tasks.map(t => renderTaskRow(t, today)).join('')}</div>`;
 }
 
 function renderTaskRow(t, today) {
   const isOverdue = t.due_date && t.due_date < today && t.status !== 'done';
-  const sc        = STATUS_CONFIG[t.status] || STATUS_CONFIG.todo;
-  const pc        = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.medium;
+  const sc = STATUS_CONFIG[t.status] || STATUS_CONFIG.todo;
+  const pc = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.medium;
 
   const dueText = t.due_date
     ? isOverdue
@@ -531,42 +566,23 @@ function renderTaskRow(t, today) {
     <div class="task-card">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
-            <span style="font-size:13px;font-weight:600;color:var(--text);
-              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px;">
-              ${escHtml(t.title)}
-            </span>
-            ${isOverdue ? `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;
-              background:#fef2f2;color:#ef4444;flex-shrink:0;">OVERDUE</span>` : ''}
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <span style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;">${escHtml(t.title)}</span>
+            ${isOverdue ? `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;background:#fef2f2;color:#ef4444;flex-shrink:0;">OVERDUE</span>` : ''}
           </div>
-          ${t.description ? `
-            <div style="font-size:12px;color:var(--text-2);margin-bottom:7px;
-              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px;">
-              ${escHtml(t.description)}
-            </div>` : ''}
+          ${t.description ? `<div style="font-size:12px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px;margin-bottom:6px;">${escHtml(t.description)}</div>` : ''}
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;
-              text-transform:uppercase;letter-spacing:0.04em;
-              background:${pc.bg};color:${pc.color};">${pc.label}</span>
+            <span class="priority-badge" style="background:${pc.bg};color:${pc.color};">${pc.label}</span>
             <span style="font-size:12px;">${dueText}</span>
-            ${t.assigned_by_name ? `
-              <span style="font-size:12px;color:var(--text-3);">From ${escHtml(t.assigned_by_name)}</span>
-            ` : ''}
+            ${t.assigned_by_name ? `<span style="font-size:12px;color:var(--text-3);">From ${escHtml(t.assigned_by_name)}</span>` : ''}
           </div>
         </div>
-
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-          <span style="
-            font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;
-            background:${sc.bg};color:${sc.textColor};
-            border:1px solid ${sc.color}22;white-space:nowrap;
-          ">${sc.label}</span>
-          ${t.status !== 'done' ? `
-            <button class="status-btn" onclick="openModal(${t.id}, '${escAttr(t.title)}', '${t.status}')">
-              Update ↓
-            </button>` : `
-            <span style="font-size:11px;color:var(--text-3);padding:5px 8px;">✓ Complete</span>
-          `}
+          <span style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;white-space:nowrap;background:${sc.bg};color:${sc.textColor};border:1px solid ${sc.color}22;">${sc.label}</span>
+          ${t.status !== 'done'
+            ? `<button class="status-btn" onclick="openModal(${t.id}, '${escAttr(t.title)}', '${t.status}')">Update ↓</button>`
+            : `<span style="font-size:11px;padding:4px 8px;color:var(--text-3);">✓ Complete</span>`
+          }
         </div>
       </div>
     </div>`;
@@ -577,8 +593,7 @@ function openModal(taskId, taskTitle, currentStatus) {
   document.getElementById('modal-task-title').textContent = taskTitle;
   document.getElementById('modal-status-options').innerHTML = ALL_STATUSES.map(s => `
     <button class="modal-status-option ${s.value === currentStatus ? 'current' : ''}"
-      onclick="${s.value !== currentStatus ? `updateStatus(${taskId}, '${s.value}')` : ''}"
-      ${s.value === currentStatus ? 'disabled' : ''}>
+      ${s.value !== currentStatus ? `onclick="updateStatus(${taskId}, '${s.value}')"` : 'disabled'}>
       <span style="width:8px;height:8px;border-radius:50%;background:${s.dot};flex-shrink:0;display:inline-block;"></span>
       ${s.label}
       ${s.value === currentStatus ? '<span style="margin-left:auto;font-size:11px;opacity:0.6;">Current</span>' : ''}
@@ -596,19 +611,16 @@ async function updateStatus(taskId, newStatus) {
   closeModal();
   try {
     const res = await fetch(`/api/v1/tasks/${taskId}/status/`, {
-      method:      'PATCH',
-      credentials: 'include',
-      headers:     { 'Content-Type': 'application/json' },
-      body:        JSON.stringify({ status: newStatus }),
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
     });
-
     if (res.status === 401) { window.location.href = '/'; return; }
-
     if (res.ok) {
       const idx = allTasks.findIndex(t => t.id === taskId);
       if (idx !== -1) allTasks[idx].status = newStatus;
       applyFilters();
-      showToast(`Status updated to "${STATUS_CONFIG[newStatus]?.label}"`, 'success');
+      showToast(`Status updated to "${STATUS_CONFIG[newStatus]?.label || newStatus}"`, 'success');
     } else {
       const data = await res.json().catch(() => ({}));
       showToast(data.error || 'Failed to update status.', 'error');
@@ -634,8 +646,8 @@ function showToast(msg, type) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function daysOverdue(dueDate) {
-  const days = Math.floor((new Date() - new Date(dueDate)) / 86400000);
+function daysOverdue(d) {
+  const days = Math.floor((new Date() - new Date(d)) / 86400000);
   return days === 1 ? '1 day' : days + ' days';
 }
 function formatDate(dateStr) {
@@ -644,8 +656,6 @@ function formatDate(dateStr) {
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function escAttr(str) {
-  return String(str).replace(/'/g,"\\'");
-}
+function escAttr(str) { return String(str).replace(/'/g,"\\'"); }
 </script>
 {% endblock %}

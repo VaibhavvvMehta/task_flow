@@ -1,6 +1,14 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block extra_head %}
+<style>
+  /* base.html renders a fixed dark-mode button for the login page.
+     App pages have their own button in the topbar, so we hide the fixed one. */
+  #theme-toggle { display: none !important; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div id="app-shell" style="display:flex;min-height:100vh;">
 
