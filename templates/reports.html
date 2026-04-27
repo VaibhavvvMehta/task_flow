@@ -1,0 +1,479 @@
+{% extends 'layouts/app.html' %}
+{% load static %}
+
+{% block page_title %}Reports{% endblock %}
+{% block page_subtitle %}Performance analytics and task exports{% endblock %}
+
+{% block app_content %}
+
+<!-- Toast -->
+<div id="toast" style="
+  display:none;position:fixed;bottom:24px;right:24px;z-index:999;
+  padding:12px 18px;border-radius:10px;
+  font-size:13px;font-weight:600;color:white;
+  box-shadow:0 8px 24px rgba(0,0,0,0.12);
+  transition:opacity 0.3s;
+"></div>
+
+<!-- ── Manager / Admin View ───────────────────────────────────────────────── -->
+<div id="manager-view" style="display:none;">
+
+  <!-- Controls row: range filter + export -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+
+    <!-- Range pills -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button id="range-all" onclick="setRange('all')" class="range-pill active">All Time</button>
+      <button id="range-30"  onclick="setRange('30')"  class="range-pill">Last 30 Days</button>
+      <button id="range-month" onclick="setRange('month')" class="range-pill">This Month</button>
+      <button id="range-7"   onclick="setRange('7')"   class="range-pill">Last 7 Days</button>
+    </div>
+
+    <!-- Export dropdown -->
+    <div id="export-wrapper" style="position:relative;">
+      <button onclick="toggleExportMenu()" style="
+        display:flex;align-items:center;gap:8px;
+        padding:8px 16px;border-radius:8px;border:none;
+        background:var(--blue);color:white;
+        font-size:13px;font-weight:600;font-family:'Inter',sans-serif;
+        cursor:pointer;transition:opacity 0.15s;
+      " onmouseover="this.style.opacity='0.88'" onmouseout="this.style.opacity='1'">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export
+        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      <div id="export-menu" style="
+        display:none;position:absolute;right:0;top:calc(100% + 6px);
+        width:180px;border-radius:10px;overflow:hidden;
+        background:var(--surface);border:1px solid var(--border);
+        box-shadow:0 8px 24px rgba(0,0,0,0.1);z-index:100;
+        padding:4px;
+      ">
+        <button onclick="doExport('csv')" style="
+          width:100%;display:flex;align-items:center;gap:8px;
+          padding:9px 12px;border-radius:6px;border:none;background:none;
+          font-size:13px;color:var(--text);font-family:'Inter',sans-serif;
+          cursor:pointer;text-align:left;transition:background 0.15s;
+        " onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          Download CSV
+        </button>
+        <button onclick="doExport('excel')" style="
+          width:100%;display:flex;align-items:center;gap:8px;
+          padding:9px 12px;border-radius:6px;border:none;background:none;
+          font-size:13px;color:var(--text);font-family:'Inter',sans-serif;
+          cursor:pointer;text-align:left;transition:background 0.15s;
+        " onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>
+          </svg>
+          Download Excel
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Summary KPI cards -->
+  <div id="mgr-loading" style="padding:40px;text-align:center;font-size:13px;color:var(--text-3);">Loading report…</div>
+
+  <div id="mgr-content" style="display:none;">
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;">
+
+      <div class="card perf-card">
+        <div class="perf-card-label">Total Tasks</div>
+        <div class="perf-card-value" id="mgr-total">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Done</div>
+        <div class="perf-card-value" style="color:#16a34a;" id="mgr-done">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">In Progress</div>
+        <div class="perf-card-value" style="color:#2563eb;" id="mgr-inprogress">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Overdue</div>
+        <div class="perf-card-value" style="color:#ef4444;" id="mgr-overdue">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Completion Rate</div>
+        <div class="perf-card-value" style="color:#2563eb;" id="mgr-rate">—</div>
+      </div>
+
+    </div>
+
+    <!-- Team performance table -->
+    <div class="card" style="border-radius:12px;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+        <span style="font-size:13px;font-weight:600;color:var(--text);">Team Performance</span>
+        <span style="font-size:12px;color:var(--text-3);" id="team-member-count"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <thead>
+            <tr style="background:var(--bg);">
+              <th style="text-align:left;padding:12px 20px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);white-space:nowrap;">Employee</th>
+              <th style="text-align:left;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);white-space:nowrap;">Department</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Total</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Done</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">In Progress</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">To Do</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Overdue</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Rate</th>
+            </tr>
+          </thead>
+          <tbody id="team-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /mgr-content -->
+
+</div><!-- /manager-view -->
+
+<!-- ── Employee View ──────────────────────────────────────────────────────── -->
+<div id="employee-view" style="display:none;">
+
+  <div style="margin-bottom:20px;">
+    <span style="font-size:15px;font-weight:700;color:var(--text);">My Task Report</span>
+  </div>
+
+  <div id="emp-loading" style="padding:40px;text-align:center;font-size:13px;color:var(--text-3);">Loading report…</div>
+
+  <div id="emp-content" style="display:none;">
+
+    <!-- Performance stat cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px;">
+      <div class="card perf-card">
+        <div class="perf-card-label">Total Tasks</div>
+        <div class="perf-card-value" id="emp-total">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Completed</div>
+        <div class="perf-card-value" style="color:#16a34a;" id="emp-done">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Completion Rate</div>
+        <div class="perf-card-value" style="color:#2563eb;" id="emp-rate">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">On Time</div>
+        <div class="perf-card-value" style="color:#16a34a;" id="emp-ontime">—</div>
+      </div>
+      <div class="card perf-card">
+        <div class="perf-card-label">Late</div>
+        <div class="perf-card-value" style="color:#ef4444;" id="emp-late">—</div>
+      </div>
+    </div>
+
+    <!-- Task list table -->
+    <div class="card" style="border-radius:12px;overflow:hidden;">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+        <span style="font-size:13px;font-weight:600;color:var(--text);">All Tasks</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <thead>
+            <tr style="background:var(--bg);">
+              <th style="text-align:left;padding:12px 20px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Title</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Priority</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Status</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Due Date</th>
+              <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);">Completed</th>
+            </tr>
+          </thead>
+          <tbody id="emp-task-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /emp-content -->
+
+</div><!-- /employee-view -->
+
+<style>
+  .range-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .range-pill:hover {
+    background: var(--bg);
+    color: var(--text);
+  }
+  .range-pill.active {
+    background: var(--blue);
+    color: white;
+    border-color: var(--blue);
+  }
+
+  .perf-card {
+    border-radius: 10px;
+    padding: 16px 18px;
+    text-align: center;
+  }
+  .perf-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .perf-card-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+</style>
+
+{% endblock %}
+
+{% block page_js %}
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let userRole    = null;
+let activeRange = 'all';
+
+const RANGE_IDS = ['all', '30', 'month', '7'];
+
+const STATUS_CONFIG = {
+  todo:        { label: 'To Do',       bg: 'var(--bg)',  color: 'var(--text-2)' },
+  in_progress: { label: 'In Progress', bg: '#eff6ff',   color: '#2563eb' },
+  done:        { label: 'Done',        bg: '#f0fdf4',   color: '#16a34a' },
+};
+
+const PRIORITY_CONFIG = {
+  high:   { label: 'High',   bg: '#fef2f2', color: '#ef4444' },
+  medium: { label: 'Medium', bg: '#fffbeb', color: '#d97706' },
+  low:    { label: 'Low',    bg: '#f0fdf4', color: '#16a34a' },
+};
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+    if (!res.ok) { window.location.href = '/'; return; }
+    const user = await res.json();
+    userRole = user.role;
+
+    if (userRole === 'manager' || userRole === 'admin') {
+      document.getElementById('manager-view').style.display = 'block';
+      loadTeamReport();
+    } else {
+      document.getElementById('employee-view').style.display = 'block';
+      loadEmployeeReport();
+    }
+  } catch(e) {
+    window.location.href = '/';
+  }
+});
+
+// Close export menu when clicking outside
+document.addEventListener('click', e => {
+  const menu    = document.getElementById('export-menu');
+  const wrapper = document.getElementById('export-wrapper');
+  if (menu && wrapper && !wrapper.contains(e.target)) {
+    menu.style.display = 'none';
+  }
+});
+
+// ── Range filter ───────────────────────────────────────────────────────────
+function setRange(range) {
+  activeRange = range;
+  RANGE_IDS.forEach(id => {
+    const el = document.getElementById('range-' + id);
+    if (!el) return;
+    el.classList.toggle('active', id === range);
+  });
+  loadTeamReport();
+}
+
+// ── Manager report ─────────────────────────────────────────────────────────
+async function loadTeamReport() {
+  document.getElementById('mgr-loading').style.display = 'block';
+  document.getElementById('mgr-content').style.display = 'none';
+  try {
+    const res = await fetch(`/api/v1/reports/team-summary/?range=${activeRange}`, { credentials: 'include' });
+    if (!res.ok) throw new Error();
+    renderTeamReport(await res.json());
+  } catch(e) {
+    document.getElementById('mgr-loading').innerHTML =
+      '<span style="color:#ef4444;">Failed to load report. Please try again.</span>';
+  }
+}
+
+function renderTeamReport(data) {
+  const s = data.summary;
+  document.getElementById('mgr-total').textContent      = s.total;
+  document.getElementById('mgr-done').textContent       = s.done;
+  document.getElementById('mgr-inprogress').textContent = s.in_progress;
+  document.getElementById('mgr-overdue').textContent    = s.overdue;
+  document.getElementById('mgr-rate').textContent       = s.completion_rate + '%';
+
+  const team = data.team;
+  document.getElementById('team-member-count').textContent = team.length + ' member' + (team.length !== 1 ? 's' : '');
+
+  const tbody = document.getElementById('team-table-body');
+  if (!team.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:32px 20px;text-align:center;font-size:13px;color:var(--text-3);">No team members found.</td></tr>`;
+  } else {
+    tbody.innerHTML = team.map((m, i) => `
+      <tr style="${i % 2 === 1 ? 'background:var(--bg);' : ''}"
+          onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='${i % 2 === 1 ? 'var(--bg)' : ''}'">
+        <td style="padding:12px 20px;font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;">${escHtml(m.name)}</td>
+        <td style="padding:12px 16px;font-size:12px;color:var(--text-3);white-space:nowrap;">${escHtml(m.department)}</td>
+        <td style="padding:12px 16px;text-align:center;font-size:13px;font-weight:600;color:var(--text);">${m.total}</td>
+        <td style="padding:12px 16px;text-align:center;font-size:13px;font-weight:600;color:#16a34a;">${m.done}</td>
+        <td style="padding:12px 16px;text-align:center;font-size:13px;font-weight:600;color:#2563eb;">${m.in_progress}</td>
+        <td style="padding:12px 16px;text-align:center;font-size:13px;color:var(--text-2);">${m.todo}</td>
+        <td style="padding:12px 16px;text-align:center;font-size:13px;font-weight:600;color:${m.overdue > 0 ? '#ef4444' : 'var(--text-3)'};">${m.overdue}</td>
+        <td style="padding:12px 16px;text-align:center;">
+          <span style="
+            display:inline-block;padding:2px 10px;border-radius:20px;
+            font-size:11px;font-weight:700;
+            background:${rateColor(m.completion_rate).bg};color:${rateColor(m.completion_rate).color};
+          ">${m.completion_rate}%</span>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('mgr-loading').style.display = 'none';
+  document.getElementById('mgr-content').style.display = 'block';
+}
+
+function rateColor(rate) {
+  if (rate >= 80) return { bg: '#f0fdf4', color: '#16a34a' };
+  if (rate >= 50) return { bg: '#fffbeb', color: '#d97706' };
+  return { bg: '#fef2f2', color: '#ef4444' };
+}
+
+// ── Employee report ────────────────────────────────────────────────────────
+async function loadEmployeeReport() {
+  try {
+    const [perfRes, tasksRes] = await Promise.all([
+      fetch('/api/v1/reports/my-performance/', { credentials: 'include' }),
+      fetch('/api/v1/tasks/', { credentials: 'include' }),
+    ]);
+    if (!perfRes.ok || !tasksRes.ok) throw new Error();
+    const perf  = await perfRes.json();
+    const tasks = await tasksRes.json();
+    renderEmployeeReport(perf, tasks.results || tasks);
+  } catch(e) {
+    document.getElementById('emp-loading').innerHTML =
+      '<span style="color:#ef4444;">Failed to load report. Please try again.</span>';
+  }
+}
+
+function renderEmployeeReport(perf, tasks) {
+  document.getElementById('emp-total').textContent  = perf.total_tasks;
+  document.getElementById('emp-done').textContent   = perf.done_tasks;
+  document.getElementById('emp-rate').textContent   = perf.completion_rate + '%';
+  document.getElementById('emp-ontime').textContent = perf.on_time_count;
+  document.getElementById('emp-late').textContent   = perf.late_count;
+
+  const today = new Date().toISOString().split('T')[0];
+  const tbody = document.getElementById('emp-task-body');
+
+  if (!tasks.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="padding:32px 20px;text-align:center;font-size:13px;color:var(--text-3);">No tasks yet.</td></tr>`;
+  } else {
+    tbody.innerHTML = tasks.map((t, i) => {
+      const sc = STATUS_CONFIG[t.status] || STATUS_CONFIG.todo;
+      const pc = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.medium;
+      const isOverdue = t.due_date && t.due_date < today && t.status !== 'done';
+      return `
+        <tr style="${i % 2 === 1 ? 'background:var(--bg);' : ''}"
+            onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='${i % 2 === 1 ? 'var(--bg)' : ''}'">
+          <td style="padding:12px 20px;color:var(--text);">
+            <span style="font-size:13px;font-weight:500;">${escHtml(t.title)}</span>
+            ${isOverdue ? `<span style="margin-left:8px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;background:#fef2f2;color:#ef4444;">OVERDUE</span>` : ''}
+          </td>
+          <td style="padding:12px 16px;text-align:center;">
+            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.04em;background:${pc.bg};color:${pc.color};">${pc.label}</span>
+          </td>
+          <td style="padding:12px 16px;text-align:center;">
+            <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:${sc.bg};color:${sc.color};">${sc.label}</span>
+          </td>
+          <td style="padding:12px 16px;text-align:center;font-size:12px;white-space:nowrap;color:${isOverdue ? '#ef4444' : 'var(--text-2)'};">
+            ${t.due_date ? formatDate(t.due_date) : '—'}
+          </td>
+          <td style="padding:12px 16px;text-align:center;font-size:12px;white-space:nowrap;color:var(--text-3);">
+            ${t.done_at ? formatDate(t.done_at.split('T')[0]) : '—'}
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('emp-loading').style.display = 'none';
+  document.getElementById('emp-content').style.display = 'block';
+}
+
+// ── Export (manager/admin only) ────────────────────────────────────────────
+function toggleExportMenu() {
+  const menu = document.getElementById('export-menu');
+  menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+function doExport(fmt) {
+  document.getElementById('export-menu').style.display = 'none';
+  const type  = (userRole === 'manager' || userRole === 'admin') ? 'team' : 'my_tasks';
+  const range = activeRange;
+  const url   = `/api/v1/reports/export/?format=${fmt}&type=${type}&range=${range}`;
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  showToast(`Downloading ${fmt.toUpperCase()} report…`, 'success');
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent      = msg;
+  toast.style.background = type === 'success' ? '#16a34a' : '#ef4444';
+  toast.style.display    = 'block';
+  toast.style.opacity    = '1';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => { toast.style.display = 'none'; }, 300);
+  }, 3000);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function formatDate(dateStr) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+}
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}
