@@ -8,7 +8,7 @@ TaskFlow is designed for organizations with hierarchical team structures. It sol
 
 ### Key Features
 
-- **Role-Based Access Control** — 6 distinct roles with granular permissions
+- **Role-Based Access Control** — Mainly 3 distinct roles with granular permissions
 - **Task Assignment & Tracking** — Create, assign, and monitor tasks across teams
 - **Real-Time Notifications** — Automatic alerts for task events
 - **Performance Analytics** — Built-in reporting with CSV/Excel export
