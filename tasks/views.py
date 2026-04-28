@@ -19,6 +19,9 @@ from notifications.utils import notify
 
 User = get_user_model()
 
+EXECUTIVE_ROLES = ['ceo', 'cfo', 'cto']
+ELEVATED_ROLES  = ['manager', 'ceo', 'cfo', 'cto']
+
 
 def get_active_task(task_id):
     try:
@@ -27,7 +30,7 @@ def get_active_task(task_id):
         return None
 
 
-# My Tasks — all roles see their own assigned tasks 
+# ── My Tasks — all roles see their own assigned tasks ─────────────────────────
 
 class MyTaskListView(APIView):
     """
@@ -57,13 +60,13 @@ class MyTaskListView(APIView):
         return Response(TaskSerializer(tasks, many=True).data)
 
 
-#  Task Detail / Edit / Delete 
+# ── Task Detail / Edit / Delete ───────────────────────────────────────────────
 
 class TaskDetailView(APIView):
     """
-    GET    /api/v1/tasks/<id>/  — employee sees own only; manager/admin sees any
-    PATCH  /api/v1/tasks/<id>/  — manager/admin only
-    DELETE /api/v1/tasks/<id>/  — manager/admin only (soft delete)
+    GET    /api/v1/tasks/<id>/  — employee sees own only; elevated roles see any
+    PATCH  /api/v1/tasks/<id>/  — elevated roles only
+    DELETE /api/v1/tasks/<id>/  — elevated roles only (soft delete)
     """
     permission_classes = [IsAuthenticated]
 
@@ -78,10 +81,10 @@ class TaskDetailView(APIView):
         return Response(TaskSerializer(task).data)
 
     def patch(self, request, task_id):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response(
-                {'error': 'Only managers and admins can edit tasks.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Only managers and executives can edit tasks.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         task = get_active_task(task_id)
@@ -96,10 +99,10 @@ class TaskDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, task_id):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response(
-                {'error': 'Only managers and admins can delete tasks.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Only managers and executives can delete tasks.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         task = get_active_task(task_id)
@@ -111,7 +114,7 @@ class TaskDetailView(APIView):
         return Response({'message': 'Task deleted successfully.'})
 
 
-# Team Assign
+# ── Team Assign ───────────────────────────────────────────────────────────────
 
 class TeamAssignView(APIView):
     """
@@ -122,17 +125,17 @@ class TeamAssignView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response(
-                {'error': 'Only managers and admins can assign tasks.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Only managers and executives can assign tasks.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         user_ids = request.data.get('assigned_to', [])
         if not isinstance(user_ids, list) or len(user_ids) == 0:
             return Response(
                 {'error': 'assigned_to must be a non-empty list of user IDs.'},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         created_tasks = []
@@ -167,12 +170,13 @@ class TeamAssignView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
-# Status Update 
+# ── Status Update ─────────────────────────────────────────────────────────────
+
 class TaskStatusUpdateView(APIView):
     """
     PATCH /api/v1/tasks/<id>/status/
     Employee updates own task only.
-    Manager/Admin can update any task.
+    Elevated roles can update any task.
     Every change logged to TaskStatusHistory.
     """
     permission_classes = [IsAuthenticated]
@@ -213,7 +217,7 @@ class TaskStatusUpdateView(APIView):
         old_label = STATUS_LABELS.get(old_status, old_status)
         new_label = STATUS_LABELS.get(new_status, new_status)
 
-        # Employee updates - notify the task creator (manager)
+        # Employee updates — notify the task creator (manager/executive)
         if request.user.role == 'employee' and task.created_by and task.created_by != request.user:
             notify(
                 user=task.created_by,
@@ -222,8 +226,8 @@ class TaskStatusUpdateView(APIView):
                 message=f'{request.user.first_name} {request.user.last_name} changed "{task.title}" from {old_label} to {new_label}.'.strip(),
                 task=task,
             )
-        # Manager/admin updates - notify the assigned employee
-        elif request.user.role in ['manager', 'admin'] and task.assigned_to != request.user:
+        # Elevated role updates — notify the assigned employee
+        elif request.user.role in ELEVATED_ROLES and task.assigned_to != request.user:
             notify(
                 user=task.assigned_to,
                 notif_type='task_status_changed',
@@ -238,17 +242,17 @@ class TaskStatusUpdateView(APIView):
         })
 
 
-#Reassign
+# ── Reassign ──────────────────────────────────────────────────────────────────
 
 class TaskReassignView(APIView):
-    """PUT/PATCH /api/v1/tasks/<id>/assign/ — manager/admin reassigns to different employee"""
+    """PUT/PATCH /api/v1/tasks/<id>/assign/ — elevated roles reassign to different employee"""
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, task_id):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response(
-                {'error': 'Only managers and admins can reassign tasks.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Only managers and executives can reassign tasks.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         task = get_active_task(task_id)
@@ -289,16 +293,17 @@ class TaskReassignView(APIView):
     put = patch
 
 
+# ── Manager / Executive Own Tasks ─────────────────────────────────────────────
+
 class ManagerOwnTasksView(APIView):
     """
     GET /api/v1/manager/my-tasks/
-    Tasks assigned TO the manager themselves.
-    Supports ?status= ?priority=
+    Tasks assigned TO the elevated user themselves.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
 
         tasks = Task.objects.filter(
@@ -317,26 +322,28 @@ class ManagerOwnTasksView(APIView):
         return Response(TaskSerializer(tasks, many=True).data)
 
 
+# ── Manager / Executive Team View ─────────────────────────────────────────────
+
 class ManagerTeamView(APIView):
     """
     GET /api/v1/manager/team/
-    Employees in the same department as the manager,
-    each with their task counts and full task list.
+    Managers see their direct reports.
+    Executives see all employees.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
 
         today = timezone.now().date()
 
-        # Single query: annotate all counts directly on the employee queryset
-        employees = User.objects.filter(
-            manager=request.user,
-            role='employee',
-            is_active=True,
-        ).annotate(
+        if request.user.role in EXECUTIVE_ROLES:
+            base_qs = User.objects.filter(role='employee', is_active=True)
+        else:
+            base_qs = User.objects.filter(manager=request.user, role='employee', is_active=True)
+
+        employees = base_qs.annotate(
             total_tasks=Count(
                 'assigned_tasks',
                 filter=Q(assigned_tasks__is_deleted=False),
@@ -387,7 +394,7 @@ class ManagerTeamView(APIView):
         return Response(result)
 
 
-# Frontend Views
+# ── Frontend Views ────────────────────────────────────────────────────────────
 
 class MyTasksPageView(View):
     def get(self, request):

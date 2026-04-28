@@ -15,7 +15,13 @@ from rest_framework.views import APIView
 
 from tasks.models import Task
 
+from rest_framework_simplejwt.tokens import AccessToken
+from django.contrib.auth import get_user_model 
+
 User = get_user_model()
+
+EXECUTIVE_ROLES = ['ceo', 'cfo', 'cto']
+ELEVATED_ROLES  = ['manager', 'ceo', 'cfo', 'cto']
 
 
 def _date_filter(range_val):
@@ -45,16 +51,12 @@ def _task_counts(qs):
 
 
 class MyPerformanceView(APIView):
-    """
-    GET /api/v1/reports/my-performance/
-    Employees see own stats. Managers pass ?user_id=<id> for a direct report.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         subject = request.user
 
-        if request.user.role in ['manager', 'admin']:
+        if request.user.role in ELEVATED_ROLES:
             user_id = request.query_params.get('user_id', '').strip()
             if user_id:
                 try:
@@ -112,19 +114,14 @@ class MyPerformanceView(APIView):
 
 
 class TeamSummaryView(APIView):
-    """
-    GET /api/v1/reports/team-summary/?range=all|7|30|month
-    Managers see their direct reports. Admins see all employees.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
 
-        range_val   = request.query_params.get('range', 'all')
-        df          = _date_filter(range_val)
-
+        range_val    = request.query_params.get('range', 'all')
+        df           = _date_filter(range_val)
         employees_qs = User.objects.filter(role='employee', is_active=True)
         base_qs      = Task.objects.filter(is_deleted=False, **df)
 
@@ -166,22 +163,32 @@ class TeamSummaryView(APIView):
         })
 
 
-class ExportView(APIView):
+
+
+class ExportView(View):
     """
     GET /api/v1/reports/export/?format=csv|excel&type=team|my_tasks&range=all|7|30|month
-    Streams a file download. 'team' type requires manager/admin role.
     """
-    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        fmt         = request.query_params.get('format', 'csv')
-        export_type = request.query_params.get('type', 'my_tasks')
-        range_val   = request.query_params.get('range', 'all')
+        raw = request.COOKIES.get('access_token')
+        if not raw:
+            return HttpResponse('Not authenticated.', status=401)
+        try:
+            token = AccessToken(raw)
+            User  = get_user_model()
+            request.user = User.objects.get(id=token['user_id'])
+        except Exception:
+            return HttpResponse('Not authenticated.', status=401)
+
+        fmt         = request.GET.get('format', 'csv')
+        export_type = request.GET.get('type', 'my_tasks')
+        range_val   = request.GET.get('range', 'all')
         df          = _date_filter(range_val)
 
         if export_type == 'team':
-            if request.user.role not in ['manager', 'admin']:
-                return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
+            if request.user.role not in ELEVATED_ROLES:
+                return HttpResponse('Not authorised.', status=403)
             headers, rows, filename = self._team_data(request.user, df)
         else:
             headers, rows, filename = self._my_tasks_data(request.user, df)

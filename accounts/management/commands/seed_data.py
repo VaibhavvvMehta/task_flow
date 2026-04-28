@@ -19,18 +19,18 @@ class Command(BaseCommand):
         Task.objects.all().delete()
         User.objects.filter(is_superuser=False).delete()
 
-        self.stdout.write('Creating users...')
+        self.stdout.write('Creating executives...')
 
-        # ── C-Suite ──────────────────────────────────────────────────────────
+        # ── C-Suite (no one above CEO) ─────────────────────────────────────────
         ceo = User.objects.create_user(
             username='rajesh.mehta',
             email='ceo@taskflow.com',
             password='Test@1234',
             first_name='Rajesh',
             last_name='Mehta',
-            role='admin',
+            role='ceo',
             department='Executive',
-            is_staff=True,
+            manager=None,          # No one above CEO
         )
 
         cfo = User.objects.create_user(
@@ -39,9 +39,9 @@ class Command(BaseCommand):
             password='Test@1234',
             first_name='Sunita',
             last_name='Agarwal',
-            role='admin',
+            role='cfo',
             department='Executive',
-            is_staff=True,
+            manager=ceo,           # CFO reports to CEO
         )
 
         cto = User.objects.create_user(
@@ -50,12 +50,14 @@ class Command(BaseCommand):
             password='Test@1234',
             first_name='Vikram',
             last_name='Nair',
-            role='admin',
+            role='cto',
             department='Executive',
-            is_staff=True,
+            manager=ceo,           # CTO reports to CEO
         )
 
-        # ── Software — Backend Team ───────────────────────────────────────────
+        self.stdout.write('Creating managers and teams...')
+
+        # ── Software — Backend Team (under CTO) ───────────────────────────────
         priya = User.objects.create_user(
             username='priya.sharma',
             email='priya@taskflow.com',
@@ -64,6 +66,7 @@ class Command(BaseCommand):
             last_name='Sharma',
             role='manager',
             department='Software',
+            manager=cto,           # Reports to CTO
         )
 
         rahul = User.objects.create_user(
@@ -88,7 +91,7 @@ class Command(BaseCommand):
             manager=priya,
         )
 
-        # ── Software — Frontend Team ──────────────────────────────────────────
+        # ── Software — Frontend Team (under CTO) ──────────────────────────────
         arjun = User.objects.create_user(
             username='arjun.desai',
             email='arjun@taskflow.com',
@@ -97,6 +100,7 @@ class Command(BaseCommand):
             last_name='Desai',
             role='manager',
             department='Software',
+            manager=cto,           # Reports to CTO
         )
 
         karan = User.objects.create_user(
@@ -121,7 +125,7 @@ class Command(BaseCommand):
             manager=arjun,
         )
 
-        # ── Software — QA Team ────────────────────────────────────────────────
+        # ── Software — QA Team (under CTO) ───────────────────────────────────
         deepak = User.objects.create_user(
             username='deepak.joshi',
             email='deepak@taskflow.com',
@@ -130,6 +134,7 @@ class Command(BaseCommand):
             last_name='Joshi',
             role='manager',
             department='Software',
+            manager=cto,           # Reports to CTO
         )
 
         tanvi = User.objects.create_user(
@@ -154,7 +159,7 @@ class Command(BaseCommand):
             manager=deepak,
         )
 
-        # ── Software — DevOps Team ────────────────────────────────────────────
+        # ── Software — DevOps Team (under CTO) ───────────────────────────────
         nisha = User.objects.create_user(
             username='nisha.bhat',
             email='nisha@taskflow.com',
@@ -163,6 +168,7 @@ class Command(BaseCommand):
             last_name='Bhat',
             role='manager',
             department='Software',
+            manager=cto,           # Reports to CTO
         )
 
         saurabh = User.objects.create_user(
@@ -176,51 +182,7 @@ class Command(BaseCommand):
             manager=nisha,
         )
 
-        # ── Marketing — Content & Social Team ────────────────────────────────
-        neha = User.objects.create_user(
-            username='neha.joshi',
-            email='neha@taskflow.com',
-            password='Test@1234',
-            first_name='Neha',
-            last_name='Joshi',
-            role='manager',
-            department='Marketing',
-        )
-
-        riya = User.objects.create_user(
-            username='riya.bose',
-            email='riya@taskflow.com',
-            password='Test@1234',
-            first_name='Riya',
-            last_name='Bose',
-            role='employee',
-            department='Marketing',
-            manager=neha,
-        )
-
-        # ── Marketing — Growth & Campaigns Team ──────────────────────────────
-        amit = User.objects.create_user(
-            username='amit.kulkarni',
-            email='amit@taskflow.com',
-            password='Test@1234',
-            first_name='Amit',
-            last_name='Kulkarni',
-            role='manager',
-            department='Marketing',
-        )
-
-        divya = User.objects.create_user(
-            username='divya.iyer',
-            email='divya@taskflow.com',
-            password='Test@1234',
-            first_name='Divya',
-            last_name='Iyer',
-            role='employee',
-            department='Marketing',
-            manager=amit,
-        )
-
-        # ── Finance Dept ──────────────────────────────────────────────────────
+        # ── Finance — Accounts Team (under CFO) ──────────────────────────────
         suresh = User.objects.create_user(
             username='suresh.gupta',
             email='suresh@taskflow.com',
@@ -229,6 +191,7 @@ class Command(BaseCommand):
             last_name='Gupta',
             role='manager',
             department='Finance',
+            manager=cfo,           # Reports to CFO
         )
 
         meera = User.objects.create_user(
@@ -253,7 +216,53 @@ class Command(BaseCommand):
             manager=suresh,
         )
 
-        # ── Operations Dept ───────────────────────────────────────────────────
+        # ── Finance — Audit Team (under CFO) ─────────────────────────────────
+        neha = User.objects.create_user(
+            username='neha.joshi',
+            email='neha@taskflow.com',
+            password='Test@1234',
+            first_name='Neha',
+            last_name='Joshi',
+            role='manager',
+            department='Finance',
+            manager=cfo,           # Reports to CFO
+        )
+
+        riya = User.objects.create_user(
+            username='riya.bose',
+            email='riya@taskflow.com',
+            password='Test@1234',
+            first_name='Riya',
+            last_name='Bose',
+            role='employee',
+            department='Finance',
+            manager=neha,
+        )
+
+        # ── Operations — Marketing Team (under CEO) ───────────────────────────
+        amit = User.objects.create_user(
+            username='amit.kulkarni',
+            email='amit@taskflow.com',
+            password='Test@1234',
+            first_name='Amit',
+            last_name='Kulkarni',
+            role='manager',
+            department='Marketing',
+            manager=ceo,           # Reports to CEO
+        )
+
+        divya = User.objects.create_user(
+            username='divya.iyer',
+            email='divya@taskflow.com',
+            password='Test@1234',
+            first_name='Divya',
+            last_name='Iyer',
+            role='employee',
+            department='Marketing',
+            manager=amit,
+        )
+
+        # ── Operations — Ops Team (under CEO) ────────────────────────────────
         ravi = User.objects.create_user(
             username='ravi.menon',
             email='ravi@taskflow.com',
@@ -262,6 +271,7 @@ class Command(BaseCommand):
             last_name='Menon',
             role='manager',
             department='Operations',
+            manager=ceo,           # Reports to CEO
         )
 
         kavya = User.objects.create_user(
@@ -389,30 +399,16 @@ class Command(BaseCommand):
             assigned_to=cto, created_by=ceo,
         )
 
-        # ── Marketing tasks ───────────────────────────────────────────────────
-        t8 = Task.objects.create(
-            title='Q2 social media calendar',
-            description='Plan and schedule social media posts across LinkedIn, Twitter, and Instagram for Q2.',
-            status='in_progress', priority='medium',
-            due_date=date.today() + timedelta(days=3),
-            assigned_to=divya, created_by=amit,
-        )
-        t9 = Task.objects.create(
-            title='Product launch email campaign',
-            description='Design and send product launch email to 10k subscribers. A/B test subject lines.',
+        # ── CFO-level task (assigned by CEO) ─────────────────────────────────
+        t21 = Task.objects.create(
+            title='Q1 financial board presentation',
+            description='Prepare and present Q1 financial summary to board. Coordinate with Finance and Audit teams.',
             status='todo', priority='high',
-            due_date=date.today() + timedelta(days=6),
-            assigned_to=riya, created_by=neha,
-        )
-        t10 = Task.objects.create(
-            title='Competitor analysis report',
-            description='Research top 5 competitors and prepare a structured analysis report for leadership.',
-            status='done', priority='medium',
-            due_date=date.today() - timedelta(days=5),
-            assigned_to=divya, created_by=neha,
+            due_date=date.today() + timedelta(days=7),
+            assigned_to=cfo, created_by=ceo,
         )
 
-        # ── Finance tasks ─────────────────────────────────────────────────────
+        # ── Finance — Accounts tasks ──────────────────────────────────────────
         t11 = Task.objects.create(
             title='Monthly GST filing',
             description='Prepare and submit GST returns for March 2026. Deadline: 20th April.',
@@ -426,6 +422,38 @@ class Command(BaseCommand):
             status='todo', priority='high',
             due_date=date.today() - timedelta(days=1),
             assigned_to=ankit, created_by=suresh,
+        )
+
+        # ── Finance — Audit tasks ─────────────────────────────────────────────
+        t8 = Task.objects.create(
+            title='Q1 vendor audit report',
+            description='Audit all vendor contracts and flag expired or non-compliant agreements.',
+            status='in_progress', priority='medium',
+            due_date=date.today() + timedelta(days=3),
+            assigned_to=riya, created_by=neha,
+        )
+        t9 = Task.objects.create(
+            title='Internal compliance checklist',
+            description='Review internal processes against updated compliance framework. Submit findings report.',
+            status='todo', priority='high',
+            due_date=date.today() + timedelta(days=6),
+            assigned_to=riya, created_by=neha,
+        )
+
+        # ── Marketing tasks ───────────────────────────────────────────────────
+        t10 = Task.objects.create(
+            title='Q2 social media calendar',
+            description='Plan and schedule social media posts across LinkedIn, Twitter, and Instagram for Q2.',
+            status='done', priority='medium',
+            due_date=date.today() - timedelta(days=5),
+            assigned_to=divya, created_by=amit,
+        )
+        t22 = Task.objects.create(
+            title='Product launch email campaign',
+            description='Design and send product launch email to 10k subscribers. A/B test subject lines.',
+            status='in_progress', priority='high',
+            due_date=date.today() + timedelta(days=4),
+            assigned_to=divya, created_by=amit,
         )
 
         # ── Operations tasks ──────────────────────────────────────────────────
@@ -452,7 +480,7 @@ class Command(BaseCommand):
         TaskStatusHistory.objects.create(task=t5,  changed_by=rahul,   old_status='todo',        new_status='in_progress')
         TaskStatusHistory.objects.create(task=t5,  changed_by=rahul,   old_status='in_progress', new_status='done')
         TaskStatusHistory.objects.create(task=t6,  changed_by=karan,   old_status='todo',        new_status='in_progress')
-        TaskStatusHistory.objects.create(task=t8,  changed_by=divya,   old_status='todo',        new_status='in_progress')
+        TaskStatusHistory.objects.create(task=t8,  changed_by=riya,    old_status='todo',        new_status='in_progress')
         TaskStatusHistory.objects.create(task=t10, changed_by=divya,   old_status='todo',        new_status='in_progress')
         TaskStatusHistory.objects.create(task=t10, changed_by=divya,   old_status='in_progress', new_status='done')
         TaskStatusHistory.objects.create(task=t11, changed_by=meera,   old_status='todo',        new_status='in_progress')
@@ -462,6 +490,7 @@ class Command(BaseCommand):
         TaskStatusHistory.objects.create(task=t15, changed_by=cto,     old_status='todo',        new_status='in_progress')
         TaskStatusHistory.objects.create(task=t16, changed_by=tanvi,   old_status='todo',        new_status='in_progress')
         TaskStatusHistory.objects.create(task=t19, changed_by=saurabh, old_status='todo',        new_status='in_progress')
+        TaskStatusHistory.objects.create(task=t22, changed_by=divya,   old_status='todo',        new_status='in_progress')
 
         self.stdout.write('Creating assignments...')
 
@@ -474,11 +503,13 @@ class Command(BaseCommand):
         for task in [t19, t20]:
             TaskAssignment.objects.create(task=task, assigned_to=task.assigned_to, assigned_by=nisha)
         TaskAssignment.objects.create(task=t15,  assigned_to=cto,   assigned_by=ceo)
-        for task in [t8, t10]:
-            TaskAssignment.objects.create(task=task, assigned_to=task.assigned_to, assigned_by=amit)
-        TaskAssignment.objects.create(task=t9,   assigned_to=riya,  assigned_by=neha)
+        TaskAssignment.objects.create(task=t21,  assigned_to=cfo,   assigned_by=ceo)
         for task in [t11, t12]:
             TaskAssignment.objects.create(task=task, assigned_to=task.assigned_to, assigned_by=suresh)
+        for task in [t8, t9]:
+            TaskAssignment.objects.create(task=task, assigned_to=task.assigned_to, assigned_by=neha)
+        for task in [t10, t22]:
+            TaskAssignment.objects.create(task=task, assigned_to=task.assigned_to, assigned_by=amit)
         TaskAssignment.objects.create(task=t13,  assigned_to=kavya, assigned_by=ravi)
         TaskAssignment.objects.create(task=t14,  assigned_to=rohit, assigned_by=ravi)
 
@@ -493,6 +524,7 @@ class Command(BaseCommand):
         TaskComment.objects.create(task=t15, author=cto,     body='Backend roadmap received from Priya. Waiting on Arjun for frontend items and Deepak for QA timelines.')
         TaskComment.objects.create(task=t16, author=tanvi,   body='Pytest + Selenium shortlisted. Setting up base test runner and fixtures this week.')
         TaskComment.objects.create(task=t19, author=saurabh, body='Staging namespace created. Working on Helm chart templates for the app services.')
+        TaskComment.objects.create(task=t21, author=cfo,     body='Coordinating with Suresh and Neha for Q1 numbers. Presentation draft in progress.')
 
         self.stdout.write('Creating notifications...')
 
@@ -503,52 +535,48 @@ class Command(BaseCommand):
         Notification.objects.create(user=sneha,   type='task_overdue',      title='Overdue: API performance audit is 3 days late',  message='Please update or complete the task.', task=t4, is_read=False)
         Notification.objects.create(user=meera,   type='task_due_reminder', title='Due tomorrow: Monthly GST filing',               message='This task is due tomorrow.',      task=t11, is_read=False)
         Notification.objects.create(user=ankit,   type='task_overdue',      title='Overdue: Q1 financial report is 1 day late',     message='Please update or complete the task.', task=t12, is_read=False)
-        Notification.objects.create(user=divya,   type='task_assigned',     title='New task: Q2 social media calendar',             message='Assigned by Amit Kulkarni',      task=t8,  is_read=True)
+        Notification.objects.create(user=divya,   type='task_assigned',     title='New task: Product launch email campaign',        message='Assigned by Amit Kulkarni',      task=t22, is_read=True)
         Notification.objects.create(user=rohit,   type='task_assigned',     title='New task: Vendor contract renewal',              message='Assigned by Ravi Menon',         task=t14, is_read=True)
         Notification.objects.create(user=cto,     type='task_assigned',     title='New task: Q2 software roadmap review',           message='Assigned by Rajesh Mehta (CEO)', task=t15, is_read=False)
+        Notification.objects.create(user=cfo,     type='task_assigned',     title='New task: Q1 financial board presentation',      message='Assigned by Rajesh Mehta (CEO)', task=t21, is_read=False)
         Notification.objects.create(user=tanvi,   type='task_assigned',     title='New task: Set up QA automation framework',       message='Assigned by Deepak Joshi',       task=t16, is_read=True)
         Notification.objects.create(user=akash,   type='task_assigned',     title='New task: Sprint regression testing',            message='Assigned by Deepak Joshi',       task=t17, is_read=False)
         Notification.objects.create(user=saurabh, type='task_assigned',     title='New task: Kubernetes cluster migration',         message='Assigned by Nisha Bhat',         task=t19, is_read=True)
+        Notification.objects.create(user=riya,    type='task_assigned',     title='New task: Q1 vendor audit report',               message='Assigned by Neha Joshi',         task=t8,  is_read=True)
 
         self.stdout.write(self.style.SUCCESS('\nSeed data created successfully!'))
-        self.stdout.write('─' * 55)
+        self.stdout.write('─' * 60)
         self.stdout.write('Test credentials  (password: Test@1234)')
-        self.stdout.write('─' * 55)
-        self.stdout.write('C-Suite (Executive)')
-        self.stdout.write('  CEO  →  ceo@taskflow.com   (Rajesh Mehta)')
-        self.stdout.write('  CFO  →  cfo@taskflow.com   (Sunita Agarwal)')
-        self.stdout.write('  CTO  →  cto@taskflow.com   (Vikram Nair)')
-        self.stdout.write('─' * 55)
-        self.stdout.write('Software — Backend Team')
-        self.stdout.write('  Lead     →  priya@taskflow.com   (Priya Sharma)')
-        self.stdout.write('  Employee →  rahul@taskflow.com   (Rahul Kumar)')
-        self.stdout.write('  Employee →  sneha@taskflow.com   (Sneha Patel)')
-        self.stdout.write('Software — Frontend Team')
-        self.stdout.write('  Lead     →  arjun@taskflow.com   (Arjun Desai)')
-        self.stdout.write('  Employee →  karan@taskflow.com   (Karan Singh)')
-        self.stdout.write('  Employee →  pooja@taskflow.com   (Pooja Verma)')
-        self.stdout.write('Software — QA Team')
-        self.stdout.write('  Lead     →  deepak@taskflow.com  (Deepak Joshi)')
-        self.stdout.write('  Employee →  tanvi@taskflow.com   (Tanvi Rao)')
-        self.stdout.write('  Employee →  akash@taskflow.com   (Akash Tiwari)')
-        self.stdout.write('Software — DevOps Team')
-        self.stdout.write('  Lead     →  nisha@taskflow.com   (Nisha Bhat)')
-        self.stdout.write('  Employee →  saurabh@taskflow.com (Saurabh Yadav)')
-        self.stdout.write('─' * 55)
-        self.stdout.write('Marketing — Content & Social')
-        self.stdout.write('  Lead     →  neha@taskflow.com    (Neha Joshi)')
-        self.stdout.write('  Employee →  riya@taskflow.com    (Riya Bose)')
-        self.stdout.write('Marketing — Growth & Campaigns')
-        self.stdout.write('  Lead     →  amit@taskflow.com    (Amit Kulkarni)')
-        self.stdout.write('  Employee →  divya@taskflow.com   (Divya Iyer)')
-        self.stdout.write('─' * 55)
-        self.stdout.write('Finance')
-        self.stdout.write('  Lead     →  suresh@taskflow.com  (Suresh Gupta)')
-        self.stdout.write('  Employee →  meera@taskflow.com   (Meera Nair)')
-        self.stdout.write('  Employee →  ankit@taskflow.com   (Ankit Shah)')
-        self.stdout.write('─' * 55)
-        self.stdout.write('Operations')
-        self.stdout.write('  Lead     →  ravi@taskflow.com    (Ravi Menon)')
-        self.stdout.write('  Employee →  kavya@taskflow.com   (Kavya Reddy)')
-        self.stdout.write('  Employee →  rohit@taskflow.com   (Rohit Pandey)')
-        self.stdout.write('─' * 55)
+        self.stdout.write('─' * 60)
+        self.stdout.write('C-Suite  (no one above CEO)')
+        self.stdout.write('  CEO  →  ceo@taskflow.com   (Rajesh Mehta)   — sees ALL')
+        self.stdout.write('  CFO  →  cfo@taskflow.com   (Sunita Agarwal) — Finance & Audit → CEO')
+        self.stdout.write('  CTO  →  cto@taskflow.com   (Vikram Nair)    — Software teams → CEO')
+        self.stdout.write('─' * 60)
+        self.stdout.write('Software teams (under CTO)')
+        self.stdout.write('  Lead     →  priya@taskflow.com   (Priya Sharma)   Backend')
+        self.stdout.write('    Employee →  rahul@taskflow.com')
+        self.stdout.write('    Employee →  sneha@taskflow.com')
+        self.stdout.write('  Lead     →  arjun@taskflow.com   (Arjun Desai)    Frontend')
+        self.stdout.write('    Employee →  karan@taskflow.com')
+        self.stdout.write('    Employee →  pooja@taskflow.com')
+        self.stdout.write('  Lead     →  deepak@taskflow.com  (Deepak Joshi)   QA')
+        self.stdout.write('    Employee →  tanvi@taskflow.com')
+        self.stdout.write('    Employee →  akash@taskflow.com')
+        self.stdout.write('  Lead     →  nisha@taskflow.com   (Nisha Bhat)     DevOps')
+        self.stdout.write('    Employee →  saurabh@taskflow.com')
+        self.stdout.write('─' * 60)
+        self.stdout.write('Finance teams (under CFO)')
+        self.stdout.write('  Lead     →  suresh@taskflow.com  (Suresh Gupta)   Accounts')
+        self.stdout.write('    Employee →  meera@taskflow.com')
+        self.stdout.write('    Employee →  ankit@taskflow.com')
+        self.stdout.write('  Lead     →  neha@taskflow.com    (Neha Joshi)     Audit')
+        self.stdout.write('    Employee →  riya@taskflow.com')
+        self.stdout.write('─' * 60)
+        self.stdout.write('Other teams (under CEO)')
+        self.stdout.write('  Lead     →  amit@taskflow.com    (Amit Kulkarni)  Marketing')
+        self.stdout.write('    Employee →  divya@taskflow.com')
+        self.stdout.write('  Lead     →  ravi@taskflow.com    (Ravi Menon)     Operations')
+        self.stdout.write('    Employee →  kavya@taskflow.com')
+        self.stdout.write('    Employee →  rohit@taskflow.com')
+        self.stdout.write('─' * 60)

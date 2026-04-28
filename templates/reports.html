@@ -15,21 +15,17 @@
   transition:opacity 0.3s;
 "></div>
 
-<!-- ── Manager / Admin View ───────────────────────────────────────────────── -->
+<!-- ── Elevated Role View (manager / ceo / cfo / cto) ────────────────────── -->
 <div id="manager-view" style="display:none;">
 
-  <!-- Controls row: range filter + export -->
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
-
-    <!-- Range pills -->
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-      <button id="range-all" onclick="setRange('all')" class="range-pill active">All Time</button>
-      <button id="range-30"  onclick="setRange('30')"  class="range-pill">Last 30 Days</button>
+      <button id="range-all"   onclick="setRange('all')"   class="range-pill active">All Time</button>
+      <button id="range-30"    onclick="setRange('30')"    class="range-pill">Last 30 Days</button>
       <button id="range-month" onclick="setRange('month')" class="range-pill">This Month</button>
-      <button id="range-7"   onclick="setRange('7')"   class="range-pill">Last 7 Days</button>
+      <button id="range-7"     onclick="setRange('7')"     class="range-pill">Last 7 Days</button>
     </div>
 
-    <!-- Export dropdown -->
     <div id="export-wrapper" style="position:relative;">
       <button onclick="toggleExportMenu()" style="
         display:flex;align-items:center;gap:8px;
@@ -44,16 +40,13 @@
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
         Export
-        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
+        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div id="export-menu" style="
         display:none;position:absolute;right:0;top:calc(100% + 6px);
         width:180px;border-radius:10px;overflow:hidden;
         background:var(--surface);border:1px solid var(--border);
-        box-shadow:0 8px 24px rgba(0,0,0,0.1);z-index:100;
-        padding:4px;
+        box-shadow:0 8px 24px rgba(0,0,0,0.1);z-index:100;padding:4px;
       ">
         <button onclick="doExport('csv')" style="
           width:100%;display:flex;align-items:center;gap:8px;
@@ -82,40 +75,19 @@
         </button>
       </div>
     </div>
-
   </div>
 
-  <!-- Summary KPI cards -->
   <div id="mgr-loading" style="padding:40px;text-align:center;font-size:13px;color:var(--text-3);">Loading report…</div>
 
   <div id="mgr-content" style="display:none;">
-
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;">
-
-      <div class="card perf-card">
-        <div class="perf-card-label">Total Tasks</div>
-        <div class="perf-card-value" id="mgr-total">—</div>
-      </div>
-      <div class="card perf-card">
-        <div class="perf-card-label">Done</div>
-        <div class="perf-card-value" style="color:#16a34a;" id="mgr-done">—</div>
-      </div>
-      <div class="card perf-card">
-        <div class="perf-card-label">In Progress</div>
-        <div class="perf-card-value" style="color:#2563eb;" id="mgr-inprogress">—</div>
-      </div>
-      <div class="card perf-card">
-        <div class="perf-card-label">Overdue</div>
-        <div class="perf-card-value" style="color:#ef4444;" id="mgr-overdue">—</div>
-      </div>
-      <div class="card perf-card">
-        <div class="perf-card-label">Completion Rate</div>
-        <div class="perf-card-value" style="color:#2563eb;" id="mgr-rate">—</div>
-      </div>
-
+      <div class="card perf-card"><div class="perf-card-label">Total Tasks</div><div class="perf-card-value" id="mgr-total">—</div></div>
+      <div class="card perf-card"><div class="perf-card-label">Done</div><div class="perf-card-value" style="color:#16a34a;" id="mgr-done">—</div></div>
+      <div class="card perf-card"><div class="perf-card-label">In Progress</div><div class="perf-card-value" style="color:#2563eb;" id="mgr-inprogress">—</div></div>
+      <div class="card perf-card"><div class="perf-card-label">Overdue</div><div class="perf-card-value" style="color:#ef4444;" id="mgr-overdue">—</div></div>
+      <div class="card perf-card"><div class="perf-card-label">Completion Rate</div><div class="perf-card-value" style="color:#2563eb;" id="mgr-rate">—</div></div>
     </div>
 
-    <!-- Team performance table -->
     <div class="card" style="border-radius:12px;overflow:hidden;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
         <span style="font-size:13px;font-weight:600;color:var(--text);">Team Performance</span>
@@ -139,47 +111,23 @@
         </table>
       </div>
     </div>
+  </div>
+</div>
 
-  </div><!-- /mgr-content -->
-
-</div><!-- /manager-view -->
-
-<!-- ── Employee View ──────────────────────────────────────────────────────── -->
+<!-- ── Employee View ───────────────────────────────────────────────────────── -->
 <div id="employee-view" style="display:none;">
-
   <div style="margin-bottom:20px;">
     <span style="font-size:15px;font-weight:700;color:var(--text);">My Task Report</span>
   </div>
-
   <div id="emp-loading" style="padding:40px;text-align:center;font-size:13px;color:var(--text-3);">Loading report…</div>
-
   <div id="emp-content" style="display:none;">
-
-    <!-- Performance stat cards -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px;">
-      <div class="card perf-card">
-        <div class="perf-card-label">Total Tasks</div>
-        <div class="perf-card-value" id="emp-total">—</div>
-      </div>
-      <div class="card perf-card">
-        <div class="perf-card-label">Completed</div>
-        <div class="perf-card-value" style="color:#16a34a;" id="emp-done">—</div>
-      </div>
-      <div class="card perf-card">
-        <div class="perf-card-label">Completion Rate</div>
-        <div class="perf-card-value" style="color:#2563eb;" id="emp-rate">—</div>
-      </div>
-      <div class="card perf-card">
-        <div class="perf-card-label">On Time</div>
-        <div class="perf-card-value" style="color:#16a34a;" id="emp-ontime">—</div>
-      </div>
-      <div class="card perf-card">
-        <div class="perf-card-label">Late</div>
-        <div class="perf-card-value" style="color:#ef4444;" id="emp-late">—</div>
-      </div>
+      <div class="card perf-card"><div class="perf-card-label">Total Tasks</div><div class="perf-card-value" id="emp-total">—</div></div>
+      <div class="card perf-card"><div class="perf-card-label">Completed</div><div class="perf-card-value" style="color:#16a34a;" id="emp-done">—</div></div>
+      <div class="card perf-card"><div class="perf-card-label">Completion Rate</div><div class="perf-card-value" style="color:#2563eb;" id="emp-rate">—</div></div>
+      <div class="card perf-card"><div class="perf-card-label">On Time</div><div class="perf-card-value" style="color:#16a34a;" id="emp-ontime">—</div></div>
+      <div class="card perf-card"><div class="perf-card-label">Late</div><div class="perf-card-value" style="color:#ef4444;" id="emp-late">—</div></div>
     </div>
-
-    <!-- Task list table -->
     <div class="card" style="border-radius:12px;overflow:hidden;">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
         <span style="font-size:13px;font-weight:600;color:var(--text);">All Tasks</span>
@@ -199,63 +147,25 @@
         </table>
       </div>
     </div>
-
-  </div><!-- /emp-content -->
-
-</div><!-- /employee-view -->
+  </div>
+</div>
 
 <style>
-  .range-pill {
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text-2);
-    font-size: 12px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .range-pill:hover {
-    background: var(--bg);
-    color: var(--text);
-  }
-  .range-pill.active {
-    background: var(--blue);
-    color: white;
-    border-color: var(--blue);
-  }
-
-  .perf-card {
-    border-radius: 10px;
-    padding: 16px 18px;
-    text-align: center;
-  }
-  .perf-card-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-3);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 8px;
-  }
-  .perf-card-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text);
-    line-height: 1;
-  }
+  .range-pill { padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:all 0.15s; }
+  .range-pill:hover { background:var(--bg);color:var(--text); }
+  .range-pill.active { background:var(--blue);color:white;border-color:var(--blue); }
+  .perf-card { border-radius:10px;padding:16px 18px;text-align:center; }
+  .perf-card-label { font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px; }
+  .perf-card-value { font-size:28px;font-weight:700;color:var(--text);line-height:1; }
 </style>
 
 {% endblock %}
 
 {% block page_js %}
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
+const ELEVATED_ROLES = ['manager', 'ceo', 'cfo', 'cto'];
 let userRole    = null;
 let activeRange = 'all';
-
 const RANGE_IDS = ['all', '30', 'month', '7'];
 
 const STATUS_CONFIG = {
@@ -263,14 +173,12 @@ const STATUS_CONFIG = {
   in_progress: { label: 'In Progress', bg: '#eff6ff',   color: '#2563eb' },
   done:        { label: 'Done',        bg: '#f0fdf4',   color: '#16a34a' },
 };
-
 const PRIORITY_CONFIG = {
   high:   { label: 'High',   bg: '#fef2f2', color: '#ef4444' },
   medium: { label: 'Medium', bg: '#fffbeb', color: '#d97706' },
   low:    { label: 'Low',    bg: '#f0fdf4', color: '#16a34a' },
 };
 
-// ── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     const res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
@@ -278,39 +186,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     const user = await res.json();
     userRole = user.role;
 
-    if (userRole === 'manager' || userRole === 'admin') {
+    if (ELEVATED_ROLES.includes(userRole)) {
       document.getElementById('manager-view').style.display = 'block';
       loadTeamReport();
     } else {
       document.getElementById('employee-view').style.display = 'block';
       loadEmployeeReport();
     }
-  } catch(e) {
-    window.location.href = '/';
-  }
+  } catch(e) { window.location.href = '/'; }
 });
 
-// Close export menu when clicking outside
 document.addEventListener('click', e => {
-  const menu    = document.getElementById('export-menu');
+  const menu = document.getElementById('export-menu');
   const wrapper = document.getElementById('export-wrapper');
-  if (menu && wrapper && !wrapper.contains(e.target)) {
-    menu.style.display = 'none';
-  }
+  if (menu && wrapper && !wrapper.contains(e.target)) menu.style.display = 'none';
 });
 
-// ── Range filter ───────────────────────────────────────────────────────────
 function setRange(range) {
   activeRange = range;
   RANGE_IDS.forEach(id => {
     const el = document.getElementById('range-' + id);
-    if (!el) return;
-    el.classList.toggle('active', id === range);
+    if (el) el.classList.toggle('active', id === range);
   });
   loadTeamReport();
 }
 
-// ── Manager report ─────────────────────────────────────────────────────────
 async function loadTeamReport() {
   document.getElementById('mgr-loading').style.display = 'block';
   document.getElementById('mgr-content').style.display = 'none';
@@ -319,8 +219,7 @@ async function loadTeamReport() {
     if (!res.ok) throw new Error();
     renderTeamReport(await res.json());
   } catch(e) {
-    document.getElementById('mgr-loading').innerHTML =
-      '<span style="color:#ef4444;">Failed to load report. Please try again.</span>';
+    document.getElementById('mgr-loading').innerHTML = '<span style="color:#ef4444;">Failed to load report. Please try again.</span>';
   }
 }
 
@@ -350,14 +249,9 @@ function renderTeamReport(data) {
         <td style="padding:12px 16px;text-align:center;font-size:13px;color:var(--text-2);">${m.todo}</td>
         <td style="padding:12px 16px;text-align:center;font-size:13px;font-weight:600;color:${m.overdue > 0 ? '#ef4444' : 'var(--text-3)'};">${m.overdue}</td>
         <td style="padding:12px 16px;text-align:center;">
-          <span style="
-            display:inline-block;padding:2px 10px;border-radius:20px;
-            font-size:11px;font-weight:700;
-            background:${rateColor(m.completion_rate).bg};color:${rateColor(m.completion_rate).color};
-          ">${m.completion_rate}%</span>
+          <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${rateColor(m.completion_rate).bg};color:${rateColor(m.completion_rate).color};">${m.completion_rate}%</span>
         </td>
-      </tr>
-    `).join('');
+      </tr>`).join('');
   }
 
   document.getElementById('mgr-loading').style.display = 'none';
@@ -370,7 +264,6 @@ function rateColor(rate) {
   return { bg: '#fef2f2', color: '#ef4444' };
 }
 
-// ── Employee report ────────────────────────────────────────────────────────
 async function loadEmployeeReport() {
   try {
     const [perfRes, tasksRes] = await Promise.all([
@@ -382,8 +275,7 @@ async function loadEmployeeReport() {
     const tasks = await tasksRes.json();
     renderEmployeeReport(perf, tasks.results || tasks);
   } catch(e) {
-    document.getElementById('emp-loading').innerHTML =
-      '<span style="color:#ef4444;">Failed to load report. Please try again.</span>';
+    document.getElementById('emp-loading').innerHTML = '<span style="color:#ef4444;">Failed to load report. Please try again.</span>';
   }
 }
 
@@ -431,36 +323,28 @@ function renderEmployeeReport(perf, tasks) {
   document.getElementById('emp-content').style.display = 'block';
 }
 
-// ── Export (manager/admin only) ────────────────────────────────────────────
 function toggleExportMenu() {
   const menu = document.getElementById('export-menu');
   menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
 }
 
 function doExport(fmt) {
+   if (!userRole) { showToast('Please wait, loading…', 'error'); return; }
   document.getElementById('export-menu').style.display = 'none';
-  const type  = (userRole === 'manager' || userRole === 'admin') ? 'team' : 'my_tasks';
-  const range = activeRange;
-  const url   = `/api/v1/reports/export/?format=${fmt}&type=${type}&range=${range}`;
-
+  const type = (userRole && ELEVATED_ROLES.includes(userRole)) ? 'team' : 'my_tasks';
+  const url   = `/api/v1/reports/export/?format=${fmt}&type=${type}&range=${activeRange}`;
   const a = document.createElement('a');
-  a.href = url;
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-
+  a.href = url; a.style.display = 'none';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
   showToast(`Downloading ${fmt.toUpperCase()} report…`, 'success');
 }
 
-// ── Toast ──────────────────────────────────────────────────────────────────
 let toastTimer = null;
 function showToast(msg, type) {
   const toast = document.getElementById('toast');
-  toast.textContent      = msg;
+  toast.textContent = msg;
   toast.style.background = type === 'success' ? '#16a34a' : '#ef4444';
-  toast.style.display    = 'block';
-  toast.style.opacity    = '1';
+  toast.style.display = 'block'; toast.style.opacity = '1';
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     toast.style.opacity = '0';
@@ -468,7 +352,6 @@ function showToast(msg, type) {
   }, 3000);
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 function formatDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
 }
