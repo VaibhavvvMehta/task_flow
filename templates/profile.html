@@ -1,0 +1,110 @@
+{% extends 'layouts/app.html' %}
+{% load static %}
+
+{% block page_title %}My Profile{% endblock %}
+{% block page_subtitle %}Your account information{% endblock %}
+
+{% block app_content %}
+<div style="max-width:640px;">
+
+  <div class="card" style="border-radius:14px;padding:28px;margin-bottom:16px;">
+
+    <!-- Avatar + identity -->
+    <div style="display:flex;align-items:center;gap:20px;margin-bottom:28px;padding-bottom:24px;border-bottom:1px solid var(--border);">
+      <div id="profile-avatar" style="
+        width:64px;height:64px;flex-shrink:0;
+        border-radius:50%;
+        background:var(--blue);
+        display:flex;align-items:center;justify-content:center;
+        font-size:22px;font-weight:700;color:white;
+        letter-spacing:-1px;
+      ">--</div>
+      <div style="overflow:hidden;">
+        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:3px;" id="profile-fullname">Loading…</div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:10px;" id="profile-email"></div>
+        <span id="profile-role-badge" style="
+          font-size:11px;font-weight:700;
+          padding:3px 10px;border-radius:20px;
+          background:var(--blue-light);color:var(--blue);
+          text-transform:uppercase;letter-spacing:0.04em;
+        "></span>
+      </div>
+    </div>
+
+    <!-- Read-only info grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px;">Department</div>
+        <div style="font-size:13px;color:var(--text);" id="profile-department">—</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px;">Member Since</div>
+        <div style="font-size:13px;color:var(--text);" id="profile-joined">—</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px;">Username</div>
+        <div style="font-size:13px;color:var(--text);" id="profile-username">—</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px;">Status</div>
+        <div style="font-size:13px;color:#16a34a;font-weight:600;">Active</div>
+      </div>
+    </div>
+
+    <!-- Info notice — name changes not allowed -->
+    <div style="
+      padding:10px 14px;border-radius:8px;
+      background:var(--bg);border:1px solid var(--border);
+      font-size:12px;color:var(--text-3);
+      display:flex;align-items:center;gap:8px;
+    ">
+      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--blue);">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      To update your name or email, contact your manager or HR.
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+async function loadProfile() {
+  try {
+    let res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+
+    if (res.status === 401) {
+      const refresh = await fetch('/api/v1/auth/token/refresh/', { method: 'POST', credentials: 'include' });
+      if (!refresh.ok) { window.location.href = '/'; return; }
+      res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+    }
+
+    if (!res.ok) { window.location.href = '/'; return; }
+    renderProfile(await res.json());
+  } catch (e) {
+    console.error('Profile load error:', e);
+  }
+}
+
+function renderProfile(u) {
+  const parts    = (u.full_name || '').trim().split(/\s+/).filter(Boolean);
+  const initials = parts.map(p => p[0]).join('').slice(0, 2).toUpperCase() || '?';
+
+  document.getElementById('profile-avatar').textContent     = initials;
+  document.getElementById('profile-fullname').textContent   = u.full_name || u.email;
+  document.getElementById('profile-email').textContent      = u.email;
+  document.getElementById('profile-role-badge').textContent = u.role;
+  document.getElementById('profile-department').textContent = u.department || '—';
+  document.getElementById('profile-username').textContent   = u.username;
+  document.getElementById('profile-joined').textContent     = formatDate(u.date_joined);
+}
+
+function formatDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+document.addEventListener('DOMContentLoaded', loadProfile);
+</script>
+{% endblock %}

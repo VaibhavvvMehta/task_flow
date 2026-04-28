@@ -2,25 +2,11 @@
 {% load static %}
 
 {% block page_title %}Assign Task{% endblock %}
-{% block page_subtitle %}Create and assign a task to your team{% endblock %}
+{% block page_subtitle %}Create and assign a task to one or more team members{% endblock %}
 
 {% block app_content %}
 
 <div style="max-width:680px;">
-
-  <!-- Mode toggle -->
-  <div class="card" style="border-radius:12px;padding:6px;display:inline-flex;gap:4px;margin-bottom:20px;">
-    <button id="btn-single" onclick="setMode('single')" style="
-      padding:7px 20px;border-radius:8px;border:none;cursor:pointer;
-      font-size:13px;font-weight:600;font-family:'Inter',sans-serif;
-      background:var(--blue);color:white;transition:all 0.15s;
-    ">Single Assign</button>
-    <button id="btn-team" onclick="setMode('team')" style="
-      padding:7px 20px;border-radius:8px;border:none;cursor:pointer;
-      font-size:13px;font-weight:600;font-family:'Inter',sans-serif;
-      background:transparent;color:var(--text-2);transition:all 0.15s;
-    ">Team Assign</button>
-  </div>
 
   <!-- Form card -->
   <div class="card" style="border-radius:12px;padding:28px;">
@@ -58,54 +44,27 @@
         </select>
       </div>
       <div>
-        <label class="label" for="task-due">Due Date <span style="font-size:12px;color:var(--text-3);font-weight:400;">(optional)</span></label>
-        <input id="task-due" type="date" class="input-field"/>
+        <label class="label" for="task-due">Due Date <span style="color:var(--error);">*</span></label>
+        <input id="task-due" type="date" class="input-field" required/>
+        <div id="due-error" style="display:none;font-size:12px;color:var(--error);margin-top:4px;"></div>
       </div>
     </div>
 
-    <!-- ── Single mode: searchable dropdown ── -->
-    <div id="single-assign-section" style="margin-bottom:24px;">
-      <label class="label">Assign To <span style="color:var(--error);">*</span></label>
-      <div style="position:relative;">
-        <input id="single-search" type="text" class="input-field" placeholder="Search employee name..."
-          autocomplete="off" oninput="filterEmployees()" onfocus="showDropdown()" />
-        <div id="single-dropdown" style="
-          display:none;
-          position:absolute;top:calc(100% + 4px);left:0;right:0;
-          background:var(--surface);
-          border:1px solid var(--border);
-          border-radius:8px;
-          max-height:200px;overflow-y:auto;
-          z-index:50;
-          box-shadow:0 8px 24px rgba(0,0,0,0.08);
-        "></div>
-      </div>
-      <input type="hidden" id="single-selected-id"/>
-      <div id="single-selected-pill" style="display:none;margin-top:8px;">
-        <span style="
-          display:inline-flex;align-items:center;gap:6px;
-          padding:4px 10px;background:var(--blue-light);
-          color:var(--blue);border-radius:20px;font-size:12px;font-weight:600;
-        ">
-          <span id="single-selected-name"></span>
-          <span onclick="clearSingleSelection()" style="cursor:pointer;font-size:14px;line-height:1;">×</span>
-        </span>
+    <!-- Member selection -->
+    <div style="margin-bottom:24px;">
+      <label class="label">
+        Assign To <span style="color:var(--error);">*</span>
+        <span style="font-size:12px;color:var(--text-3);font-weight:400;" id="selected-count"></span>
+      </label>
+      <input id="member-search" type="text" class="input-field" placeholder="Search employees..."
+        oninput="filterMemberList()" style="margin-bottom:10px;"/>
+      <div id="member-list" style="
+        border:1px solid var(--border);border-radius:8px;
+        max-height:240px;overflow-y:auto;
+      ">
+        <div style="padding:16px;text-align:center;font-size:13px;color:var(--text-3);">Loading employees…</div>
       </div>
       <div id="assign-error" style="display:none;font-size:12px;color:var(--error);margin-top:4px;"></div>
-    </div>
-
-    <!-- ── Team mode: checkbox list ── -->
-    <div id="team-assign-section" style="display:none;margin-bottom:24px;">
-      <label class="label">Assign To <span style="color:var(--error);">*</span> <span style="font-size:12px;color:var(--text-3);font-weight:400;" id="team-selected-count"></span></label>
-      <input id="team-search" type="text" class="input-field" placeholder="Search employees..."
-        oninput="filterTeamList()" style="margin-bottom:10px;"/>
-      <div id="team-list" style="
-        border:1px solid var(--border);border-radius:8px;
-        max-height:220px;overflow-y:auto;
-      ">
-        <div style="padding:16px;text-align:center;font-size:13px;color:var(--text-3);">Loading employees...</div>
-      </div>
-      <div id="team-assign-error" style="display:none;font-size:12px;color:var(--error);margin-top:4px;"></div>
     </div>
 
     <!-- Submit -->
@@ -121,116 +80,39 @@
 {% block page_js %}
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
-let currentMode    = 'single';
-let allEmployees   = [];
-let selectedTeamIds = new Set();
+let allEmployees  = [];
+let selectedIds   = new Set();
 
 // ── Init ───────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  loadEmployees();
-  // Close dropdown on outside click
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('#single-search') && !e.target.closest('#single-dropdown')) {
-      document.getElementById('single-dropdown').style.display = 'none';
-    }
-  });
-});
+document.addEventListener('DOMContentLoaded', loadEmployees);
 
-// ── Load employees from /api/v1/auth/me/ department ────────────────────────
+// ── Load employees ─────────────────────────────────────────────────────────
 async function loadEmployees() {
   try {
     const res = await fetch('/api/v1/users/employees/', { credentials: 'include' });
-    if (!res.ok) throw new Error('Failed to load employees');
+    if (!res.ok) throw new Error();
     allEmployees = await res.json();
-    renderTeamList(allEmployees);
+    renderMemberList(allEmployees);
   } catch(e) {
-    // Fallback — fetch from manager team endpoint
     try {
       const res2 = await fetch('/api/v1/tasks/manager/team/', { credentials: 'include' });
       if (!res2.ok) throw new Error();
       const data = await res2.json();
       allEmployees = data.map(emp => ({
-        id:         emp.id,
-        full_name:  emp.full_name,
-        email:      emp.email,
-        department: emp.department,
+        id: emp.id, full_name: emp.full_name,
+        email: emp.email, department: emp.department,
       }));
-      renderTeamList(allEmployees);
+      renderMemberList(allEmployees);
     } catch(e2) {
-      document.getElementById('team-list').innerHTML =
+      document.getElementById('member-list').innerHTML =
         '<div style="padding:16px;text-align:center;font-size:13px;color:var(--error);">Failed to load employees.</div>';
     }
   }
 }
 
-// ── Mode toggle ────────────────────────────────────────────────────────────
-function setMode(mode) {
-  currentMode = mode;
-  const isSingle = mode === 'single';
-
-  document.getElementById('single-assign-section').style.display = isSingle ? 'block' : 'none';
-  document.getElementById('team-assign-section').style.display   = isSingle ? 'none'  : 'block';
-
-  document.getElementById('btn-single').style.background = isSingle ? 'var(--blue)' : 'transparent';
-  document.getElementById('btn-single').style.color      = isSingle ? 'white' : 'var(--text-2)';
-  document.getElementById('btn-team').style.background   = isSingle ? 'transparent' : 'var(--blue)';
-  document.getElementById('btn-team').style.color        = isSingle ? 'var(--text-2)' : 'white';
-
-  clearErrors();
-}
-
-// ── Single mode: searchable dropdown ──────────────────────────────────────
-function showDropdown() {
-  filterEmployees();
-  document.getElementById('single-dropdown').style.display = 'block';
-}
-
-function filterEmployees() {
-  const q       = document.getElementById('single-search').value.toLowerCase();
-  const filtered = allEmployees.filter(e =>
-    e.full_name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)
-  );
-  renderDropdown(filtered);
-  document.getElementById('single-dropdown').style.display = 'block';
-}
-
-function renderDropdown(employees) {
-  const dd = document.getElementById('single-dropdown');
-  if (!employees.length) {
-    dd.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--text-3);">No employees found</div>';
-    return;
-  }
-  dd.innerHTML = employees.map(emp => `
-    <div onclick="selectEmployee(${emp.id}, '${emp.full_name}')" style="
-      padding:10px 14px;cursor:pointer;
-      font-size:13px;color:var(--text);
-      border-bottom:1px solid var(--border);
-      transition:background 0.1s;
-    " onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
-      <div style="font-weight:500;">${emp.full_name}</div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:1px;">${emp.department || emp.email}</div>
-    </div>
-  `).join('');
-}
-
-function selectEmployee(id, name) {
-  document.getElementById('single-selected-id').value   = id;
-  document.getElementById('single-selected-name').textContent = name;
-  document.getElementById('single-search').value        = '';
-  document.getElementById('single-selected-pill').style.display = 'block';
-  document.getElementById('single-dropdown').style.display      = 'none';
-  document.getElementById('assign-error').style.display         = 'none';
-}
-
-function clearSingleSelection() {
-  document.getElementById('single-selected-id').value          = '';
-  document.getElementById('single-selected-name').textContent  = '';
-  document.getElementById('single-selected-pill').style.display = 'none';
-}
-
-// ── Team mode: checkbox list ───────────────────────────────────────────────
-function renderTeamList(employees) {
-  const el = document.getElementById('team-list');
+// ── Render member checkbox list ─────────────────────────────────────────────
+function renderMemberList(employees) {
+  const el = document.getElementById('member-list');
   if (!employees.length) {
     el.innerHTML = '<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-3);">No employees found</div>';
     return;
@@ -243,8 +125,8 @@ function renderTeamList(employees) {
       transition:background 0.1s;
     " onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
       <input type="checkbox" value="${emp.id}"
-        onchange="toggleTeamMember(${emp.id})"
-        ${selectedTeamIds.has(emp.id) ? 'checked' : ''}
+        onchange="toggleMember(${emp.id})"
+        ${selectedIds.has(emp.id) ? 'checked' : ''}
         style="width:15px;height:15px;accent-color:var(--blue);flex-shrink:0;cursor:pointer;"/>
       <div>
         <div style="font-size:13px;font-weight:500;color:var(--text);">${emp.full_name}</div>
@@ -252,30 +134,26 @@ function renderTeamList(employees) {
       </div>
     </label>
   `).join('');
-  updateTeamCount();
+  updateSelectedCount();
 }
 
-function toggleTeamMember(id) {
-  if (selectedTeamIds.has(id)) {
-    selectedTeamIds.delete(id);
-  } else {
-    selectedTeamIds.add(id);
-  }
-  updateTeamCount();
+function toggleMember(id) {
+  selectedIds.has(id) ? selectedIds.delete(id) : selectedIds.add(id);
+  updateSelectedCount();
+  document.getElementById('assign-error').style.display = 'none';
 }
 
-function updateTeamCount() {
-  const count = selectedTeamIds.size;
-  document.getElementById('team-selected-count').textContent =
-    count > 0 ? `(${count} selected)` : '';
+function updateSelectedCount() {
+  const n = selectedIds.size;
+  document.getElementById('selected-count').textContent = n > 0 ? `(${n} selected)` : '';
 }
 
-function filterTeamList() {
-  const q = document.getElementById('team-search').value.toLowerCase();
+function filterMemberList() {
+  const q = document.getElementById('member-search').value.toLowerCase();
   const filtered = allEmployees.filter(e =>
     e.full_name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)
   );
-  renderTeamList(filtered);
+  renderMemberList(filtered);
 }
 
 // ── Submit ─────────────────────────────────────────────────────────────────
@@ -287,80 +165,41 @@ async function submitTask() {
   const priority = document.getElementById('task-priority').value;
   const due_date = document.getElementById('task-due').value;
 
-  // Validate title
   if (!title) {
     showFieldError('title-error', 'Task title is required.');
     document.getElementById('task-title').focus();
     return;
   }
 
-  // Validate assignee
-  if (currentMode === 'single') {
-    const assignedId = document.getElementById('single-selected-id').value;
-    if (!assignedId) {
-      showFieldError('assign-error', 'Please select an employee to assign this task to.');
-      return;
-    }
-    await submitSingle({ title, desc, priority, due_date, assigned_to: parseInt(assignedId) });
-  } else {
-    if (selectedTeamIds.size === 0) {
-      showFieldError('team-assign-error', 'Please select at least one employee.');
-      return;
-    }
-    await submitTeam({ title, desc, priority, due_date, assigned_to: [...selectedTeamIds] });
+  if (!due_date) {
+    showFieldError('due-error', 'Due date is required.');
+    document.getElementById('task-due').focus();
+    return;
   }
-}
 
-async function submitSingle(payload) {
+  if (selectedIds.size === 0) {
+    showFieldError('assign-error', 'Please select at least one employee.');
+    return;
+  }
+
   setLoading(true);
   try {
-    const res = await fetch('/api/v1/tasks/create/', {
-      method:      'POST',
-      credentials: 'include',
-      headers:     { 'Content-Type': 'application/json' },
-      body:        JSON.stringify({
-        title:       payload.title,
-        description: payload.desc,
-        priority:    payload.priority,
-        due_date:    payload.due_date || null,
-        assigned_to: payload.assigned_to,
-      }),
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      showSuccess(`Task "${data.title}" assigned successfully!`);
-      resetForm();
-    } else {
-      showError(data.title?.[0] || data.assigned_to?.[0] || data.error || 'Something went wrong.');
-    }
-  } catch(e) {
-    showError('Unable to reach server. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-}
-
-async function submitTeam(payload) {
-  setLoading(true);
-  try {
+    // Use team-assign endpoint for 1 or more members
     const res = await fetch('/api/v1/tasks/team-assign/', {
       method:      'POST',
       credentials: 'include',
       headers:     { 'Content-Type': 'application/json' },
-      body:        JSON.stringify({
-        title:       payload.title,
-        description: payload.desc,
-        priority:    payload.priority,
-        due_date:    payload.due_date || null,
-        assigned_to: payload.assigned_to,
+      body: JSON.stringify({
+        title, description: desc, priority,
+        due_date: due_date || null,
+        assigned_to: [...selectedIds],
       }),
     });
 
     const data = await res.json();
     if (res.ok) {
-      showSuccess(`Task assigned to ${data.created} employee${data.created !== 1 ? 's' : ''}!`);
-      selectedTeamIds.clear();
+      const n = data.created;
+      showSuccess(`Task assigned to ${n} member${n !== 1 ? 's' : ''}!`);
       resetForm();
     } else {
       showError(data.error || 'Something went wrong.');
@@ -378,41 +217,38 @@ function resetForm() {
   document.getElementById('task-desc').value     = '';
   document.getElementById('task-priority').value = 'medium';
   document.getElementById('task-due').value      = '';
-  clearSingleSelection();
-  selectedTeamIds.clear();
-  renderTeamList(allEmployees);
+  document.getElementById('member-search').value = '';
+  selectedIds.clear();
+  renderMemberList(allEmployees);
 }
 
 function setLoading(loading) {
   const btn = document.getElementById('submit-btn');
   btn.disabled    = loading;
-  btn.textContent = loading ? 'Assigning...' : 'Assign Task';
+  btn.textContent = loading ? 'Assigning…' : 'Assign Task';
 }
 
 function showSuccess(msg) {
-  document.getElementById('success-text').textContent = msg;
+  document.getElementById('success-text').textContent   = msg;
   document.getElementById('form-success').style.display = 'block';
   document.getElementById('form-error').style.display   = 'none';
-  // Auto hide after 4 seconds
-  setTimeout(() => {
-    document.getElementById('form-success').style.display = 'none';
-  }, 4000);
+  setTimeout(() => { document.getElementById('form-success').style.display = 'none'; }, 4000);
 }
 
 function showError(msg) {
-  document.getElementById('error-text').textContent  = msg;
+  document.getElementById('error-text').textContent   = msg;
   document.getElementById('form-error').style.display   = 'block';
   document.getElementById('form-success').style.display = 'none';
 }
 
 function showFieldError(id, msg) {
   const el = document.getElementById(id);
-  el.textContent    = msg;
-  el.style.display  = 'block';
+  el.textContent   = msg;
+  el.style.display = 'block';
 }
 
 function clearErrors() {
-  ['title-error', 'assign-error', 'team-assign-error'].forEach(id => {
+  ['title-error', 'due-error', 'assign-error'].forEach(id => {
     const el = document.getElementById(id);
     el.textContent   = '';
     el.style.display = 'none';

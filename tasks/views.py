@@ -1,6 +1,9 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.views import View
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
+from django.db.models import Count, Q
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,9 +15,12 @@ from .serializers import (
     TaskUpdateSerializer, TaskStatusUpdateSerializer,
 )
 
-# Create your views here.
+from notifications.utils import notify
 
 User = get_user_model()
+
+EXECUTIVE_ROLES = ['ceo', 'cfo', 'cto']
+ELEVATED_ROLES  = ['manager', 'ceo', 'cfo', 'cto']
 
 
 def get_active_task(task_id):
@@ -38,7 +44,7 @@ class MyTaskListView(APIView):
         tasks = Task.objects.filter(
             assigned_to=request.user,
             is_deleted=False,
-        ).select_related('assigned_to', 'created_by').order_by('-created_at')
+        ).select_related('assigned_to', 'created_by').prefetch_related('status_history').order_by('-created_at')
 
         status_filter   = request.query_params.get('status', '').strip()
         priority_filter = request.query_params.get('priority', '').strip()
@@ -54,13 +60,13 @@ class MyTaskListView(APIView):
         return Response(TaskSerializer(tasks, many=True).data)
 
 
-# ── Task Detail / Edit / Soft Delete ─────────────────────────────────────────
+# ── Task Detail / Edit / Delete ───────────────────────────────────────────────
 
 class TaskDetailView(APIView):
     """
-    GET    /api/v1/tasks/<id>/  — employee sees own only; manager/admin sees any
-    PATCH  /api/v1/tasks/<id>/  — manager/admin only
-    DELETE /api/v1/tasks/<id>/  — manager/admin only (soft delete)
+    GET    /api/v1/tasks/<id>/  — employee sees own only; elevated roles see any
+    PATCH  /api/v1/tasks/<id>/  — elevated roles only
+    DELETE /api/v1/tasks/<id>/  — elevated roles only (soft delete)
     """
     permission_classes = [IsAuthenticated]
 
@@ -75,10 +81,10 @@ class TaskDetailView(APIView):
         return Response(TaskSerializer(task).data)
 
     def patch(self, request, task_id):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response(
-                {'error': 'Only managers and admins can edit tasks.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Only managers and executives can edit tasks.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         task = get_active_task(task_id)
@@ -88,14 +94,15 @@ class TaskDetailView(APIView):
         serializer = TaskUpdateSerializer(task, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            task.refresh_from_db()
             return Response(TaskSerializer(task).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, task_id):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response(
-                {'error': 'Only managers and admins can delete tasks.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Only managers and executives can delete tasks.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         task = get_active_task(task_id)
@@ -105,34 +112,6 @@ class TaskDetailView(APIView):
         task.is_deleted = True
         task.save()
         return Response({'message': 'Task deleted successfully.'})
-
-
-# ── Create Task (single assign) ───────────────────────────────────────────────
-
-class TaskCreateView(APIView):
-    """POST /api/v1/tasks/create/ — manager/admin assigns to one employee"""
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        if request.user.role not in ['manager', 'admin']:
-            return Response(
-                {'error': 'Only managers and admins can create tasks.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        serializer = TaskCreateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        task = serializer.save(created_by=request.user)
-
-        TaskAssignment.objects.create(
-            task=task,
-            assigned_to=task.assigned_to,
-            assigned_by=request.user,
-        )
-
-        return Response(TaskSerializer(task).data, status=status.HTTP_201_CREATED)
 
 
 # ── Team Assign ───────────────────────────────────────────────────────────────
@@ -146,17 +125,17 @@ class TeamAssignView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response(
-                {'error': 'Only managers and admins can assign tasks.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Only managers and executives can assign tasks.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         user_ids = request.data.get('assigned_to', [])
         if not isinstance(user_ids, list) or len(user_ids) == 0:
             return Response(
                 {'error': 'assigned_to must be a non-empty list of user IDs.'},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         created_tasks = []
@@ -166,11 +145,19 @@ class TeamAssignView(APIView):
             data       = {**request.data, 'assigned_to': user_id}
             serializer = TaskCreateSerializer(data=data)
             if serializer.is_valid():
-                task = serializer.save(created_by=request.user)
-                TaskAssignment.objects.create(
+                with transaction.atomic():
+                    task = serializer.save(created_by=request.user)
+                    TaskAssignment.objects.create(
+                        task=task,
+                        assigned_to=task.assigned_to,
+                        assigned_by=request.user,
+                    )
+                notify(
+                    user=task.assigned_to,
+                    notif_type='task_assigned',
+                    title='New Task Assigned',
+                    message=f'You have been assigned "{task.title}" by {request.user.first_name} {request.user.last_name}.'.strip(),
                     task=task,
-                    assigned_to=task.assigned_to,
-                    assigned_by=request.user,
                 )
                 created_tasks.append(TaskSerializer(task).data)
             else:
@@ -189,7 +176,7 @@ class TaskStatusUpdateView(APIView):
     """
     PATCH /api/v1/tasks/<id>/status/
     Employee updates own task only.
-    Manager/Admin can update any task.
+    Elevated roles can update any task.
     Every change logged to TaskStatusHistory.
     """
     permission_classes = [IsAuthenticated]
@@ -212,15 +199,42 @@ class TaskStatusUpdateView(APIView):
         if old_status == new_status:
             return Response({'message': 'Status unchanged.'})
 
-        TaskStatusHistory.objects.create(
-            task=task,
-            changed_by=request.user,
-            old_status=old_status,
-            new_status=new_status,
-        )
+        with transaction.atomic():
+            TaskStatusHistory.objects.create(
+                task=task,
+                changed_by=request.user,
+                old_status=old_status,
+                new_status=new_status,
+            )
+            task.status = new_status
+            if new_status == 'done':
+                task.done_at = timezone.now()
+            elif old_status == 'done':
+                task.done_at = None
+            task.save(update_fields=['status', 'done_at', 'updated_at'])
 
-        task.status = new_status
-        task.save()
+        STATUS_LABELS = {'todo': 'To Do', 'in_progress': 'In Progress', 'done': 'Done'}
+        old_label = STATUS_LABELS.get(old_status, old_status)
+        new_label = STATUS_LABELS.get(new_status, new_status)
+
+        # Employee updates — notify the task creator (manager/executive)
+        if request.user.role == 'employee' and task.created_by and task.created_by != request.user:
+            notify(
+                user=task.created_by,
+                notif_type='task_status_changed',
+                title='Task Status Updated',
+                message=f'{request.user.first_name} {request.user.last_name} changed "{task.title}" from {old_label} to {new_label}.'.strip(),
+                task=task,
+            )
+        # Elevated role updates — notify the assigned employee
+        elif request.user.role in ELEVATED_ROLES and task.assigned_to != request.user:
+            notify(
+                user=task.assigned_to,
+                notif_type='task_status_changed',
+                title='Task Status Updated',
+                message=f'Your task "{task.title}" was changed from {old_label} to {new_label} by {request.user.first_name} {request.user.last_name}.'.strip(),
+                task=task,
+            )
 
         return Response({
             'message': f'Status updated: {old_status} → {new_status}',
@@ -231,14 +245,14 @@ class TaskStatusUpdateView(APIView):
 # ── Reassign ──────────────────────────────────────────────────────────────────
 
 class TaskReassignView(APIView):
-    """PATCH /api/v1/tasks/<id>/assign/ — manager/admin reassigns to different employee"""
+    """PUT/PATCH /api/v1/tasks/<id>/assign/ — elevated roles reassign to different employee"""
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, task_id):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response(
-                {'error': 'Only managers and admins can reassign tasks.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Only managers and executives can reassign tasks.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         task = get_active_task(task_id)
@@ -254,13 +268,21 @@ class TaskReassignView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found or inactive.'}, status=status.HTTP_404_NOT_FOUND)
 
-        task.assigned_to = new_user
-        task.save()
+        with transaction.atomic():
+            task.assigned_to = new_user
+            task.save()
+            TaskAssignment.objects.create(
+                task=task,
+                assigned_to=new_user,
+                assigned_by=request.user,
+            )
 
-        TaskAssignment.objects.create(
+        notify(
+            user=new_user,
+            notif_type='task_assigned',
+            title='Task Reassigned to You',
+            message=f'You have been assigned "{task.title}" by {request.user.first_name} {request.user.last_name}.'.strip(),
             task=task,
-            assigned_to=new_user,
-            assigned_by=request.user,
         )
 
         return Response({
@@ -268,25 +290,26 @@ class TaskReassignView(APIView):
             'task':    TaskSerializer(task).data,
         })
 
+    put = patch
 
-# ── Manager: Own Tasks ────────────────────────────────────────────────────────
+
+# ── Manager / Executive Own Tasks ─────────────────────────────────────────────
 
 class ManagerOwnTasksView(APIView):
     """
     GET /api/v1/manager/my-tasks/
-    Tasks assigned TO the manager themselves.
-    Supports ?status= ?priority=
+    Tasks assigned TO the elevated user themselves.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
 
         tasks = Task.objects.filter(
             assigned_to=request.user,
             is_deleted=False,
-        ).select_related('assigned_to', 'created_by').order_by('-created_at')
+        ).select_related('assigned_to', 'created_by').prefetch_related('status_history').order_by('-created_at')
 
         status_filter   = request.query_params.get('status', '').strip()
         priority_filter = request.query_params.get('priority', '').strip()
@@ -299,36 +322,59 @@ class ManagerOwnTasksView(APIView):
         return Response(TaskSerializer(tasks, many=True).data)
 
 
-# ── Manager: Team View ────────────────────────────────────────────────────────
+# ── Manager / Executive Team View ─────────────────────────────────────────────
 
 class ManagerTeamView(APIView):
     """
     GET /api/v1/manager/team/
-    Employees in the same department as the manager,
-    each with their task counts and full task list.
+    Managers see their direct reports.
+    Executives see all employees.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role not in ['manager', 'admin']:
+        if request.user.role not in ELEVATED_ROLES:
             return Response({'error': 'Not authorised.'}, status=status.HTTP_403_FORBIDDEN)
 
         today = timezone.now().date()
 
-        # Only employees in manager's own department
-        employees = User.objects.filter(
-            role='employee',
-            is_active=True,
-            department=request.user.department,
+        if request.user.role in EXECUTIVE_ROLES:
+            base_qs = User.objects.filter(role='employee', is_active=True)
+        else:
+            base_qs = User.objects.filter(manager=request.user, role='employee', is_active=True)
+
+        employees = base_qs.annotate(
+            total_tasks=Count(
+                'assigned_tasks',
+                filter=Q(assigned_tasks__is_deleted=False),
+            ),
+            todo_count=Count(
+                'assigned_tasks',
+                filter=Q(assigned_tasks__is_deleted=False, assigned_tasks__status='todo'),
+            ),
+            in_progress_count=Count(
+                'assigned_tasks',
+                filter=Q(assigned_tasks__is_deleted=False, assigned_tasks__status='in_progress'),
+            ),
+            done_count=Count(
+                'assigned_tasks',
+                filter=Q(assigned_tasks__is_deleted=False, assigned_tasks__status='done'),
+            ),
+            overdue_count=Count(
+                'assigned_tasks',
+                filter=Q(
+                    assigned_tasks__is_deleted=False,
+                    assigned_tasks__status__in=['todo', 'in_progress'],
+                    assigned_tasks__due_date__lt=today,
+                ),
+            ),
         )
 
         result = []
         for emp in employees:
-            tasks   = Task.objects.filter(assigned_to=emp, is_deleted=False)
-            overdue = tasks.filter(
-                status__in=['todo', 'in_progress'],
-                due_date__lt=today
-            )
+            tasks = Task.objects.filter(
+                assigned_to=emp, is_deleted=False
+            ).select_related('assigned_to', 'created_by').prefetch_related('status_history').order_by('-created_at')
 
             result.append({
                 'id':         emp.id,
@@ -336,15 +382,43 @@ class ManagerTeamView(APIView):
                 'email':      emp.email,
                 'department': emp.department,
                 'task_counts': {
-                    'total':       tasks.count(),
-                    'todo':        tasks.filter(status='todo').count(),
-                    'in_progress': tasks.filter(status='in_progress').count(),
-                    'done':        tasks.filter(status='done').count(),
-                    'overdue':     overdue.count(),
+                    'total':       emp.total_tasks,
+                    'todo':        emp.todo_count,
+                    'in_progress': emp.in_progress_count,
+                    'done':        emp.done_count,
+                    'overdue':     emp.overdue_count,
                 },
-                'tasks': TaskSerializer(
-                    tasks.order_by('-created_at'), many=True
-                ).data,
+                'tasks': TaskSerializer(tasks, many=True).data,
             })
 
         return Response(result)
+
+
+# ── Frontend Views ────────────────────────────────────────────────────────────
+
+class MyTasksPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'my_tasks.html')
+
+
+class ManagerTasksPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'manager_task.html')
+
+
+class TeamViewPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'team_view.html')
+
+
+class AssignTaskPageView(View):
+    def get(self, request):
+        if not request.COOKIES.get('access_token'):
+            return redirect('/')
+        return render(request, 'assign_task.html')

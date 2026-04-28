@@ -5,11 +5,11 @@ from django.conf import settings
 class Notification(models.Model):
 
     TYPE_CHOICES = [
-        ('task_assigned',       'Task Assigned'),
-        ('task_overdue',        'Task Overdue'),
-        ('task_due_reminder',   'Task Due Reminder'),
-        ('task_status_changed', 'Task Status Changed'),
-        ('task_comment_added',  'Task Comment Added'),
+        ('task_assigned','Task Assigned'),
+        ('task_overdue','Task Overdue'),
+        ('task_due_reminder','Task Due Reminder'),
+        ('task_status_changed','Task Status Changed'),
+        ('task_comment_added','Task Comment Added'),
     ]
 
     user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

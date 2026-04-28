@@ -1,0 +1,305 @@
+{% extends 'layouts/app.html' %}
+{% load static %}
+
+{% block page_title %}Hierarchy{% endblock %}
+{% block page_subtitle %}Organisation structure{% endblock %}
+
+{% block app_content %}
+
+<!-- Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+  <div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);" id="scope-label">My Team</div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:2px;" id="scope-sub">Showing your department hierarchy</div>
+  </div>
+  <button id="toggle-scope-btn" onclick="toggleScope()" style="
+    padding:8px 18px;border-radius:8px;
+    border:1px solid var(--blue);
+    background:var(--blue);color:white;
+    font-size:12px;font-weight:600;font-family:'Inter',sans-serif;
+    cursor:pointer;transition:all 0.15s;display:none;
+  " onmouseover="this.style.opacity='0.88'" onmouseout="this.style.opacity='1'">
+    See Full Hierarchy
+  </button>
+</div>
+
+<!-- Tree area -->
+<div id="hierarchy-root">
+  <div class="card" style="border-radius:12px;padding:48px;text-align:center;">
+    <div style="font-size:13px;color:var(--text-3);">Loading hierarchy...</div>
+  </div>
+</div>
+
+<style>
+  .dept-block { margin-bottom:32px; }
+
+  .exec-section { margin-bottom:40px; }
+
+  .exec-header {
+    display:flex;align-items:center;gap:10px;
+    padding:10px 18px;border-radius:10px;
+    background:linear-gradient(135deg,#1e40af 0%,#2563eb 100%);
+    color:white;margin-bottom:20px;
+  }
+  .exec-header-name { font-size:14px;font-weight:700; }
+  .exec-header-role { font-size:11px;opacity:0.85;font-weight:600;letter-spacing:0.05em; }
+
+  .dept-header {
+    display:inline-flex;align-items:center;gap:8px;
+    padding:6px 14px;border-radius:20px;
+    background:var(--blue);color:white;
+    font-size:12px;font-weight:700;letter-spacing:0.04em;
+    text-transform:uppercase;margin-bottom:20px;
+  }
+
+  .tree-wrap { display:flex;flex-direction:column;align-items:center; }
+  .manager-row { display:flex;justify-content:center;margin-bottom:0; }
+  .v-line { width:2px;height:28px;background:var(--border);margin:0 auto; }
+
+  .emp-col { display:flex;flex-direction:column;align-items:center;padding:0 10px;position:relative; }
+  .emp-col .e-line { width:2px;height:24px;background:var(--border); }
+
+  .person-card {
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:12px;padding:16px 18px;text-align:center;
+    min-width:130px;max-width:160px;
+    transition:box-shadow 0.15s,border-color 0.15s;
+  }
+  .person-card:hover { box-shadow:0 4px 16px rgba(0,0,0,0.08);border-color:var(--blue); }
+  .person-card.manager-card {
+    border-color:var(--blue);
+    background:linear-gradient(135deg,#eff6ff 0%,var(--surface) 100%);
+  }
+  .person-card.exec-card {
+    border-color:#1e40af;
+    background:linear-gradient(135deg,#dbeafe 0%,var(--surface) 100%);
+  }
+  html.dark .person-card.manager-card { background:linear-gradient(135deg,#1e3a5f 0%,var(--surface) 100%); }
+  html.dark .person-card.exec-card    { background:linear-gradient(135deg,#1e3050 0%,var(--surface) 100%); }
+
+  .avatar {
+    width:44px;height:44px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;font-weight:700;color:white;
+    margin:0 auto 10px;
+  }
+  .person-name {
+    font-size:12px;font-weight:700;color:var(--text);
+    margin-bottom:3px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;max-width:130px;
+  }
+  .person-role { font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;display:inline-block; }
+  .person-email { font-size:10px;color:var(--text-3);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px; }
+
+  .no-manager { padding:12px 18px;border-radius:8px;border:1px dashed var(--border);font-size:12px;color:var(--text-3);margin-bottom:16px; }
+  .no-employees { font-size:12px;color:var(--text-3);padding:10px 18px;border:1px dashed var(--border);border-radius:8px;margin-top:8px; }
+
+  .dept-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px; }
+
+  @media (max-width:640px) { .h-bar-wrap { overflow-x:auto;padding-bottom:8px; } }
+</style>
+
+{% endblock %}
+
+{% block page_js %}
+<script>
+let currentScope = 'team';
+let currentRole  = 'employee';
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/v1/auth/me/', { credentials: 'include' });
+    if (res.status === 401) { window.location.href = '/'; return; }
+    const user = await res.json();
+    currentRole = user.role;
+
+    const EXEC_ROLES = ['ceo', 'cfo', 'cto'];
+    if (EXEC_ROLES.includes(currentRole)) {
+      currentScope = 'company';
+      document.getElementById('scope-label').textContent = 'Company Hierarchy';
+      document.getElementById('scope-sub').textContent   = 'Full executive, manager, and team structure';
+    } else {
+      document.getElementById('toggle-scope-btn').style.display = 'block';
+    }
+
+    loadHierarchy();
+  } catch(e) { showError(); }
+});
+
+function toggleScope() {
+  const btn = document.getElementById('toggle-scope-btn');
+  if (currentScope === 'team') {
+    currentScope = 'company';
+    document.getElementById('scope-label').textContent = 'Company Hierarchy';
+    document.getElementById('scope-sub').textContent   = 'All departments and their teams';
+    btn.textContent = 'Back to My Team';
+    btn.style.background = 'var(--surface)';
+    btn.style.color      = 'var(--blue)';
+  } else {
+    currentScope = 'team';
+    document.getElementById('scope-label').textContent = 'My Team';
+    document.getElementById('scope-sub').textContent   = 'Showing your department hierarchy';
+    btn.textContent = 'See Full Hierarchy';
+    btn.style.background = 'var(--blue)';
+    btn.style.color      = 'white';
+  }
+  loadHierarchy();
+}
+
+async function loadHierarchy() {
+  document.getElementById('hierarchy-root').innerHTML = `
+    <div class="card" style="border-radius:12px;padding:48px;text-align:center;">
+      <div style="font-size:13px;color:var(--text-3);">Loading...</div>
+    </div>`;
+
+  try {
+    const res = await fetch(`/api/v1/users/hierarchy/?scope=${currentScope}`, { credentials: 'include' });
+    if (res.status === 401) { window.location.href = '/'; return; }
+    if (!res.ok) throw new Error();
+    renderHierarchy(await res.json());
+  } catch(e) { showError(); }
+}
+
+function renderHierarchy(data) {
+  const root = document.getElementById('hierarchy-root');
+
+  if (!data.length) {
+    root.innerHTML = `
+      <div class="card" style="border-radius:12px;padding:56px;text-align:center;">
+        <div style="font-size:28px;margin-bottom:12px;">🏢</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">No data found</div>
+        <div style="font-size:12px;color:var(--text-3);">No hierarchy information is available.</div>
+      </div>`;
+    return;
+  }
+
+  // Company scope — executive-grouped view
+  if (currentScope === 'company' && data[0] && data[0].executive) {
+    root.innerHTML = data.map(execBlock => renderExecSection(execBlock)).join('');
+  } else {
+    // Team scope — simple flat dept view
+    root.innerHTML = data.map(dept => renderDept(dept)).join('');
+  }
+}
+
+function renderExecSection(block) {
+  const exec = block.executive;
+  const depts = block.departments || [];
+
+  const execColor = exec.role === 'CEO' ? '#1e40af' : exec.role === 'CFO' ? '#065f46' : '#7c2d12';
+  const execBg    = exec.role === 'CEO' ? '#dbeafe' : exec.role === 'CFO' ? '#d1fae5' : '#ffedd5';
+  const execText  = exec.role === 'CEO' ? '#1e40af' : exec.role === 'CFO' ? '#065f46' : '#7c2d12';
+
+  const deptsHtml = depts.length
+    ? `<div class="dept-grid">${depts.map(d => renderDept(d)).join('')}</div>`
+    : `<div style="font-size:12px;color:var(--text-3);padding:16px 0;">No departments assigned.</div>`;
+
+  return `
+    <div class="exec-section card" style="border-radius:14px;padding:24px;border-left:4px solid ${execColor};">
+      <!-- Executive header -->
+      
+       <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);flex-wrap:nowrap;">
+  <div class="avatar" style="background:${execColor};width:52px;height:52px;font-size:16px;flex-shrink:0;">
+    ${initials(exec.full_name)}
+  </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:700;color:var(--text);">${escHtml(exec.full_name)}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${escHtml(exec.email)}</div>
+          <span style="
+            display:inline-block;margin-top:5px;
+            font-size:11px;font-weight:700;padding:2px 10px;border-radius:20px;
+            background:${execBg};color:${execText};
+          ">${exec.role}</span>
+        </div>
+      </div>
+      <!-- Departments under this executive -->
+      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:14px;">
+        Reporting Departments
+      </div>
+      ${deptsHtml}
+    </div>`;
+}
+
+function renderDept(dept) {
+  const mgr  = dept.manager;
+  const emps = dept.employees;
+
+  const managerHtml = mgr
+    ? `<div class="person-card manager-card">
+        <div class="avatar" style="background:var(--blue);">${initials(mgr.full_name)}</div>
+        <div class="person-name" title="${escHtml(mgr.full_name)}">${escHtml(mgr.full_name)}</div>
+        <span class="person-role" style="background:#eff6ff;color:#2563eb;">Manager</span>
+        <div class="person-email" title="${escHtml(mgr.email)}">${escHtml(mgr.email)}</div>
+      </div>`
+    : `<div class="no-manager">No manager assigned</div>`;
+
+  let employeeTree = '';
+  if (!emps || emps.length === 0) {
+    employeeTree = `<div class="no-employees">No employees yet</div>`;
+  } else {
+    const empCols = emps.map(emp => {
+      const color = stringToColor(emp.full_name);
+      return `
+        <div class="emp-col">
+          <div class="e-line"></div>
+          <div class="person-card">
+            <div class="avatar" style="background:${color};">${initials(emp.full_name)}</div>
+            <div class="person-name" title="${escHtml(emp.full_name)}">${escHtml(emp.full_name)}</div>
+            <span class="person-role" style="background:#f0fdf4;color:#15803d;">Employee</span>
+            <div class="person-email" title="${escHtml(emp.email)}">${escHtml(emp.email)}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    const connectorBar = emps.length > 1
+      ? `<div style="position:relative;display:flex;justify-content:center;width:100%;">
+          <div style="position:absolute;top:0;left:calc(50% / ${emps.length} + 10px);right:calc(50% / ${emps.length} + 10px);height:2px;background:var(--border);"></div>
+          <div style="display:flex;flex-wrap:nowrap;">${empCols}</div>
+        </div>`
+      : `<div style="display:flex;justify-content:center;">${empCols}</div>`;
+
+    employeeTree = connectorBar;
+  }
+
+  return `
+    <div class="dept-block card" style="border-radius:12px;padding:20px;">
+      <div class="dept-header">
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path d="M3 21h18M9 21V7l3-4 3 4v14M3 21V11l4-4M21 21V11l-4-4"/>
+        </svg>
+        ${escHtml(dept.department)}
+      </div>
+      <div class="tree-wrap">
+        <div class="manager-row">${managerHtml}</div>
+        ${emps && emps.length ? `<div class="v-line"></div>` : ''}
+        <div style="overflow-x:auto;width:100%;">
+          <div style="display:flex;justify-content:center;min-width:max-content;margin:0 auto;">
+            ${employeeTree}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function initials(name) {
+  return (name || '?').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
+}
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function stringToColor(str) {
+  const palette = ['#7c3aed','#059669','#d97706','#0891b2','#9333ea','#16a34a','#ea580c','#0284c7','#6d28d9','#047857','#b45309','#0369a1'];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return palette[Math.abs(hash) % palette.length];
+}
+function showError() {
+  document.getElementById('hierarchy-root').innerHTML = `
+    <div class="card" style="border-radius:12px;padding:48px;text-align:center;">
+      <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px;">Unable to load hierarchy</div>
+      <button onclick="loadHierarchy()" style="padding:7px 18px;border-radius:8px;border:none;background:var(--blue);color:white;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button>
+    </div>`;
+}
+</script>
+{% endblock %}
